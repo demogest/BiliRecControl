@@ -11,6 +11,7 @@ import {
   Database,
   Eye,
   EyeOff,
+  ExternalLink,
   Gauge,
   HardDrive,
   Info,
@@ -41,7 +42,7 @@ import {
   useRef,
   useState
 } from 'react';
-import { bilirecRequest } from '@/lib/api';
+import { bilirecRequest, openLiveRoom } from '@/lib/api';
 import ConfigurationCenter from '@/components/ConfigurationCenter';
 import RecordingLibrary from '@/components/RecordingLibrary';
 import UpdateCenter from '@/components/UpdateCenter';
@@ -153,7 +154,8 @@ function RoomCard({
   onAction,
   onDelete,
   onHistory,
-  onConfigure
+  onConfigure,
+  onWatch
 }: {
   room: Room;
   busy: boolean;
@@ -161,6 +163,7 @@ function RoomCard({
   onDelete: (room: Room) => void;
   onHistory: (room: Room) => void;
   onConfigure: (room: Room) => void;
+  onWatch: (room: Room) => void;
 }) {
   const status = room.recording ? 'recording' : room.streaming ? 'live' : 'offline';
   const statusLabel = room.recording ? '录制中' : room.streaming ? '直播中' : '离线';
@@ -271,6 +274,15 @@ function RoomCard({
         >
           <Settings2 size={15} />
           设置
+        </button>
+        <button
+          className="room-action action-watch"
+          type="button"
+          onClick={() => onWatch(room)}
+          title={`在线观看 ${room.name || room.roomId}`}
+        >
+          <ExternalLink size={15} />
+          观看
         </button>
         {room.recording ? (
           <>
@@ -649,6 +661,19 @@ export default function Dashboard() {
     });
   };
 
+  const watchLiveRoom = async (room: Room) => {
+    const url = `https://live.bilibili.com/${room.roomId}`;
+    try {
+      if ('__TAURI_INTERNALS__' in window) {
+        await openLiveRoom(room.roomId);
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error) {
+      pushToast(error instanceof Error ? error.message : '无法打开直播间', 'error');
+    }
+  };
+
   const executeConfirmed = async () => {
     if (!confirmState) return;
     setConfirmBusy(true);
@@ -970,6 +995,7 @@ export default function Dashboard() {
                   onDelete={requestDeleteRoom}
                   onHistory={(selectedRoom) => openLibrary(selectedRoom.roomId)}
                   onConfigure={(selectedRoom) => openConfigCenter(selectedRoom.roomId)}
+                  onWatch={(selectedRoom) => void watchLiveRoom(selectedRoom)}
                 />
               ))}
 

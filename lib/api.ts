@@ -61,6 +61,10 @@ export function getMpvStatus() {
   return invoke<MpvStatus>('mpv_status');
 }
 
+export function openLiveRoom(roomId: number) {
+  return invoke<void>('open_live_room', { roomId });
+}
+
 export function playRecordingWithMpv(
   connection: ConnectionSettings,
   fileUrl: string,

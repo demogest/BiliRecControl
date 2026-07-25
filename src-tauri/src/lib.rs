@@ -8,6 +8,7 @@ use std::{
     process::{Command, Stdio},
     time::Duration,
 };
+use tauri_plugin_opener::OpenerExt;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -489,6 +490,18 @@ fn mpv_status() -> MpvStatus {
 }
 
 #[tauri::command]
+fn open_live_room(app: tauri::AppHandle, room_id: u64) -> Result<(), String> {
+    if room_id == 0 {
+        return Err("直播间房间号无效".into());
+    }
+
+    let url = format!("https://live.bilibili.com/{room_id}");
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|error| format!("无法打开直播间：{error}"))
+}
+
+#[tauri::command]
 fn play_with_mpv(
     connection: ApiConnection,
     file_url: String,
@@ -530,6 +543,7 @@ fn play_with_mpv(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
@@ -546,6 +560,7 @@ pub fn run() {
             bilirec_request,
             bilirec_history,
             mpv_status,
+            open_live_room,
             play_with_mpv
         ])
         .run(tauri::generate_context!())
