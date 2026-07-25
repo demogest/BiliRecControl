@@ -43,6 +43,7 @@ import {
   useState
 } from 'react';
 import { bilirecRequest, openLiveRoom } from '@/lib/api';
+import AboutCenter from '@/components/AboutCenter';
 import ConfigurationCenter from '@/components/ConfigurationCenter';
 import RecordingLibrary from '@/components/RecordingLibrary';
 import UpdateCenter from '@/components/UpdateCenter';
@@ -800,6 +801,7 @@ export default function Dashboard() {
             <Maximize2 size={18} />
           </button>
           <UpdateCenter notify={pushToast} />
+          <AboutCenter notify={pushToast} />
           <button className="connection-button" type="button" onClick={openSettings}>
             <span className={connected ? 'online' : ''} />
             <div>

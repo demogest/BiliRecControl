@@ -47,7 +47,8 @@ export default function UpdateCenter({ notify }: Props) {
   const [downloadedBytes, setDownloadedBytes] = useState(0);
   const [totalBytes, setTotalBytes] = useState(0);
   const updateRef = useRef<Update | null>(null);
-  const automaticCheckStarted = useRef(false);
+  const automaticCheckTimer = useRef<number | null>(null);
+  const checkPromise = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     setPortalReady(true);
@@ -63,53 +64,84 @@ export default function UpdateCenter({ notify }: Props) {
 
   const checkForUpdates = useCallback(
     async (silent = false) => {
-      if (!runningInTauri()) {
-        if (!silent) {
-          setOpen(true);
-          setStatus('error');
-          setErrorMessage('应用内更新仅在已安装的桌面版本中可用。');
-        }
+      if (!silent && automaticCheckTimer.current !== null) {
+        window.clearTimeout(automaticCheckTimer.current);
+        automaticCheckTimer.current = null;
+      }
+
+      if (checkPromise.current) {
+        if (!silent) setOpen(true);
+        await checkPromise.current;
         return;
       }
 
-      setStatus('checking');
-      setErrorMessage('');
-      if (!silent) setOpen(true);
-
-      try {
-        const { check } = await import('@tauri-apps/plugin-updater');
-        const update = await check({ timeout: 15_000 });
-        if (!update) {
-          setStatus('current');
-          if (!silent) notify('当前已经是最新版本', 'success');
+      const operation = (async () => {
+        if (!runningInTauri()) {
+          if (!silent) {
+            setOpen(true);
+            setStatus('error');
+            setErrorMessage('应用内更新仅在已安装的桌面版本中可用。');
+          }
           return;
         }
 
-        if (updateRef.current && updateRef.current !== update) {
-          await updateRef.current.close().catch(() => undefined);
+        setStatus('checking');
+        setErrorMessage('');
+        if (!silent) setOpen(true);
+
+        try {
+          const { check } = await import('@tauri-apps/plugin-updater');
+          const update = await check({ timeout: 15_000 });
+          if (!update) {
+            setStatus('current');
+            if (!silent) notify('当前已经是最新版本', 'success');
+            return;
+          }
+
+          if (updateRef.current && updateRef.current !== update) {
+            await updateRef.current.close().catch(() => undefined);
+          }
+          updateRef.current = update;
+          setCurrentVersion(update.currentVersion);
+          setAvailableVersion(update.version);
+          setReleaseDate(update.date || '');
+          setReleaseNotes(update.body || '此版本未提供更新说明。');
+          setStatus('available');
+          setOpen(true);
+          notify(`发现新版本 ${update.version}`, 'info');
+        } catch (error) {
+          setStatus('error');
+          setErrorMessage(error instanceof Error ? error.message : String(error));
+          if (!silent) notify('检查更新失败', 'error');
         }
-        updateRef.current = update;
-        setCurrentVersion(update.currentVersion);
-        setAvailableVersion(update.version);
-        setReleaseDate(update.date || '');
-        setReleaseNotes(update.body || '此版本未提供更新说明。');
-        setStatus('available');
-        setOpen(true);
-        notify(`发现新版本 ${update.version}`, 'info');
-      } catch (error) {
-        setStatus('error');
-        setErrorMessage(error instanceof Error ? error.message : String(error));
-        if (!silent) notify('检查更新失败', 'error');
+      })();
+
+      checkPromise.current = operation;
+      try {
+        await operation;
+      } finally {
+        if (checkPromise.current === operation) {
+          checkPromise.current = null;
+        }
       }
     },
     [notify]
   );
 
   useEffect(() => {
-    if (!runningInTauri() || automaticCheckStarted.current) return;
-    automaticCheckStarted.current = true;
-    const timer = window.setTimeout(() => void checkForUpdates(true), 4_000);
-    return () => window.clearTimeout(timer);
+    if (!runningInTauri()) return;
+
+    automaticCheckTimer.current = window.setTimeout(() => {
+      automaticCheckTimer.current = null;
+      void checkForUpdates(true);
+    }, 4_000);
+
+    return () => {
+      if (automaticCheckTimer.current !== null) {
+        window.clearTimeout(automaticCheckTimer.current);
+        automaticCheckTimer.current = null;
+      }
+    };
   }, [checkForUpdates]);
 
   const closeUpdateModal = useCallback(() => {
