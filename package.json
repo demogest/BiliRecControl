@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "changelog": "node scripts/generate-changelog.mjs --auto-from --to HEAD --version main --repository demogest/BiliRecControl",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build --no-sign",

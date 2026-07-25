@@ -36,10 +36,34 @@ jobs:
     outputs:
       release_id: ${{ steps.release.outputs.release_id }}
     steps:
+      - name: Checkout full history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog from commits
+        env:
+          NOTES_PATH: ${{ runner.temp }}/release-notes.md
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous_tag="$(git describe --tags --abbrev=0 "${GITHUB_SHA}^" 2>/dev/null || true)"
+          arguments=(
+            --to "${GITHUB_SHA}"
+            --version "${GITHUB_REF_NAME}"
+            --repository "${GITHUB_REPOSITORY}"
+            --output "${NOTES_PATH}"
+          )
+          if [[ -n "${previous_tag}" ]]; then
+            arguments+=(--from "${previous_tag}")
+          fi
+          node scripts/generate-changelog.mjs "${arguments[@]}"
+
       - name: Create or reuse one draft
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTES_PATH: ${{ runner.temp }}/release-notes.md
         shell: bash
         run: |
           set -euo pipefail
@@ -55,11 +79,19 @@ jobs:
                 -f tag_name="${GITHUB_REF_NAME}" \
                 -f target_commitish="${GITHUB_SHA}" \
                 -f name="BiliRec Control ${GITHUB_REF_NAME}" \
-                -f body="BiliRec Control 的跨平台安装包、便携 ZIP 和签名应用内更新。" \
+                -f body="$(cat "${NOTES_PATH}")" \
                 -F draft=true \
                 -F prerelease=false \
                 --jq '.id'
             )"
+          else
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+              -f name="BiliRec Control ${GITHUB_REF_NAME}" \
+              -f body="$(cat "${NOTES_PATH}")" \
+              -F draft=true \
+              -F prerelease=false \
+              >/dev/null
           fi
 
           echo "release_id=${release_id}" >> "${GITHUB_OUTPUT}"
@@ -171,11 +203,6 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ github.ref_name }}
-          releaseName: BiliRec Control ${{ github.ref_name }}
-          releaseBody: |
-            BiliRec Control 的跨平台安装包、便携 ZIP 和签名应用内更新。
-
-            请根据操作系统与处理器架构选择下载；详细说明见仓库 README。
           releaseDraft: true
           prerelease: false
           updaterJsonPreferNsis: true
