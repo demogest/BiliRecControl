@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.secrets/
+*.key
+*.key.pub
+.next/
+out/
+node_modules/
+npm-debug.log*
+*.log
+dist/
+src-tauri/target/
