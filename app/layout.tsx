@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'REC / CTRL · 录播姬控制中心',
-  description: '录播姬本地控制中心与实时监控大屏'
+  description: '简洁、可靠的录播姬桌面控制工具'
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

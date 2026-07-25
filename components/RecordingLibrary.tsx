@@ -151,7 +151,7 @@ export default function RecordingLibrary({
 
   const play = async (file: HistoryFile) => {
     if (!mpv?.installed) {
-      notify('未检测到 MPV，请先安装 MPV 后重试', 'error');
+      notify('未找到 MPV，请先安装后重试', 'error');
       return;
     }
     setPlayingUrl(file.url);
@@ -161,7 +161,7 @@ export default function RecordingLibrary({
         file.url,
         `${file.roomName} · ${file.name}`
       );
-      notify(`已交给 MPV 播放：${file.name}`, 'success');
+      notify(`正在使用 MPV 播放：${file.name}`, 'success');
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error), 'error');
     } finally {
@@ -174,7 +174,7 @@ export default function RecordingLibrary({
       await navigator.clipboard.writeText(file.url);
       setCopiedUrl(file.url);
       window.setTimeout(() => setCopiedUrl(null), 1600);
-      notify('已复制录播姬文件路径', 'success');
+      notify('已复制文件路径', 'success');
     } catch {
       notify('复制文件路径失败', 'error');
     }
@@ -193,7 +193,7 @@ export default function RecordingLibrary({
             <div>
               <span className="section-kicker">RECORDING ARCHIVE</span>
               <h2>录制资料库</h2>
-              <p>历史录制统计与录播目录文件管理</p>
+              <p>查看录制历史和文件</p>
             </div>
           </div>
           <div className="library-header-actions">
@@ -208,7 +208,7 @@ export default function RecordingLibrary({
               onClick={() => void load()}
             >
               <RefreshCw size={15} className={loading ? 'spin' : ''} />
-              刷新资料库
+              刷新
             </button>
             <button className="modal-close" type="button" onClick={onClose} aria-label="关闭">
               <X size={18} />
@@ -381,7 +381,7 @@ export default function RecordingLibrary({
                 {loading && !overview ? (
                   <div className="library-loading">
                     <LoaderCircle size={25} className="spin" />
-                    <span>正在扫描录播目录并聚合历史记录</span>
+                    <span>正在整理录制文件</span>
                   </div>
                 ) : files.length ? (
                   files.map((file) => (
@@ -420,7 +420,7 @@ export default function RecordingLibrary({
                           className="file-copy-button"
                           type="button"
                           onClick={() => void copyPath(file)}
-                          title="复制录播姬文件路径"
+                          title="复制文件路径"
                         >
                           {copiedUrl === file.url ? <Check size={15} /> : <Copy size={15} />}
                         </button>
@@ -441,9 +441,9 @@ export default function RecordingLibrary({
 
         <footer className="library-footer">
           <span>
-            文件列表来自录播姬只读 API；当前版本不提供远程删除，避免误删录制文件。
+            这里只提供查看与播放，不会删除录制文件。
           </span>
-          <span>{mpv?.path ? `MPV: ${mpv.path}` : 'MPV 未配置'}</span>
+          <span>{mpv?.path ? `MPV: ${mpv.path}` : '未找到 MPV'}</span>
         </footer>
       </section>
     </div>

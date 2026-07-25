@@ -1,7 +1,7 @@
 [package]
 name = "bilirec-control"
-version = "1.4.7"
-description = "录播姬本地控制中心与监控大屏"
+version = "1.4.8"
+description = "简洁、可靠的录播姬桌面控制工具"
 authors = ["BiliRec Control"]
 license = "MIT"
 edition = "2021"

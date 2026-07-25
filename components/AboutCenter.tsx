@@ -109,7 +109,7 @@ export default function AboutCenter({ notify }: Props) {
                 <div>
                   <span className="section-kicker">ABOUT APPLICATION</span>
                   <h2>关于</h2>
-                  <p>应用信息、技术架构与开源项目入口</p>
+                  <p>版本与项目信息</p>
                 </div>
                 <button
                   className="modal-close"
@@ -132,7 +132,7 @@ export default function AboutCenter({ notify }: Props) {
                   <div>
                     <span>LOCAL RECORDING OPERATIONS</span>
                     <h3>{appName}</h3>
-                    <p>面向录播姬的现代化、本地优先跨平台控制中心</p>
+                    <p>简洁、可靠的录播姬桌面控制工具</p>
                   </div>
                   <strong>v{appVersion || '开发预览'}</strong>
                 </section>
@@ -141,44 +141,30 @@ export default function AboutCenter({ notify }: Props) {
                   <article>
                     <MonitorCog size={18} />
                     <div>
-                      <strong>本地优先</strong>
-                      <span>前端只与 Tauri 后端通信</span>
+                      <strong>状态一览</strong>
+                      <span>直播与录制情况清晰可见</span>
                     </div>
                   </article>
                   <article>
                     <ShieldCheck size={18} />
                     <div>
                       <strong>安全更新</strong>
-                      <span>跨平台安装包签名校验</span>
+                      <span>自动校验更新文件</span>
                     </div>
                   </article>
                   <article>
                     <Sparkles size={18} />
                     <div>
-                      <strong>现代体验</strong>
-                      <span>大屏监控、文件管理与 MPV</span>
+                      <strong>常用工具</strong>
+                      <span>录制管理与快捷播放</span>
                     </div>
                   </article>
-                </section>
-
-                <section className="about-stack">
-                  <div>
-                    <Code2 size={16} />
-                    <span>技术架构</span>
-                  </div>
-                  <ul>
-                    <li>Tauri 2</li>
-                    <li>Rust</li>
-                    <li>Next.js 16</li>
-                    <li>React 19</li>
-                    <li>TypeScript</li>
-                  </ul>
                 </section>
 
                 <section className="about-meta">
                   <div>
                     <span>更新通道</span>
-                    <strong>Stable · GitHub Releases</strong>
+                    <strong>正式版</strong>
                   </div>
                   <div>
                     <span>开源许可</span>
@@ -192,7 +178,7 @@ export default function AboutCenter({ notify }: Props) {
               </div>
 
               <footer className="modal-actions about-actions">
-                <span>REC / CTRL · Built for desktop operations</span>
+                <span>REC / CTRL · 为日常录制而设计</span>
                 <div>
                   <button
                     className="button button-secondary"

@@ -472,7 +472,7 @@ export default function Dashboard() {
         }
 
         if (!connectionAttempted.current && !silent) {
-          pushToast('已连接录播姬，实时数据同步正常', 'success');
+          pushToast('已连接，数据正在同步', 'success');
         }
         connectionAttempted.current = true;
         return true;
@@ -573,7 +573,7 @@ export default function Dashboard() {
     setTesting(true);
     try {
       const result = await bilirecRequest<RecorderVersion>(draftSettings, '/api/version');
-      pushToast(`连接成功 · 录播姬 ${result.semVer}`, 'success');
+      pushToast(`连接成功 · ${result.semVer}`, 'success');
     } catch (error) {
       pushToast(error instanceof Error ? error.message : String(error), 'error');
     } finally {
@@ -603,7 +603,7 @@ export default function Dashboard() {
     setVersion(null);
     setConnected(false);
     logCursor.current = 0;
-    pushToast('已清除本机保存的连接凭据', 'info');
+    pushToast('已清除保存的登录信息', 'info');
   };
 
   const runRoomAction = async (
@@ -639,7 +639,7 @@ export default function Dashboard() {
     if (action === 'stop') {
       setConfirmState({
         title: '停止当前录制？',
-        message: `将停止「${room.name || room.roomId}」的本次录制，已写入的文件会保留。`,
+      message: `将停止「${room.name || room.roomId}」的本次录制。已有文件会保留。`,
         actionLabel: '停止录制',
         danger: true,
         run: () => runRoomAction(room, action)
@@ -652,7 +652,7 @@ export default function Dashboard() {
   const requestDeleteRoom = (room: Room) => {
     setConfirmState({
       title: '删除直播间？',
-      message: `将从录播姬中移除「${room.name || room.roomId}」。该操作不会删除已有录制文件。`,
+      message: `将移除「${room.name || room.roomId}」。已有录制文件不会被删除。`,
       actionLabel: '确认删除',
       danger: true,
       run: async () => {
@@ -698,7 +698,7 @@ export default function Dashboard() {
     event.preventDefault();
     const roomId = parsedNewRoomId;
     if (!roomId) {
-      pushToast('请输入有效的房间号或 Bilibili 直播间 URL', 'error');
+      pushToast('请输入有效的房间号或直播间链接', 'error');
       return;
     }
 
@@ -710,7 +710,7 @@ export default function Dashboard() {
       });
       setAddRoomOpen(false);
       setNewRoomInput('');
-      pushToast(`房间 ${roomId} 添加成功`, 'success');
+      pushToast(`已添加房间 ${roomId}`, 'success');
       await refreshData(settings, true);
     } catch (error) {
       pushToast(error instanceof Error ? error.message : String(error), 'error');
@@ -754,7 +754,7 @@ export default function Dashboard() {
     return (
       <div className="boot-screen">
         <div className="boot-mark"><span /></div>
-        <p>正在加载控制中心</p>
+        <p>正在启动</p>
       </div>
     );
   }
@@ -805,7 +805,7 @@ export default function Dashboard() {
           <button className="connection-button" type="button" onClick={openSettings}>
             <span className={connected ? 'online' : ''} />
             <div>
-              <small>API 连接</small>
+              <small>服务连接</small>
               <strong>{connected ? version?.semVer || '已连接' : '连接设置'}</strong>
             </div>
             <ChevronRight size={16} />
@@ -820,8 +820,8 @@ export default function Dashboard() {
               <span />
               LIVE OPERATIONS
             </div>
-            <h1>录制运行总览</h1>
-            <p>集中掌控直播状态、录制吞吐与事件健康度</p>
+            <h1>录制总览</h1>
+            <p>查看直播、录制和存储状态</p>
           </div>
           <div className="hero-controls">
             <label className="refresh-select">
@@ -931,7 +931,7 @@ export default function Dashboard() {
             icon={<Activity size={21} />}
             label="网络吞吐"
             value={connected ? formatRate(totalNetwork) : '—'}
-            detail="当前所有录制汇总"
+            detail="所有录制任务"
             index="04"
           >
             <Sparkline values={networkHistory} />
@@ -941,7 +941,7 @@ export default function Dashboard() {
             icon={<Database size={21} />}
             label="本次写入"
             value={connected ? formatBytes(totalBytes) : '—'}
-            detail="所有录制会话累计"
+            detail="本次运行累计"
             index="05"
           />
         </section>
@@ -1016,8 +1016,8 @@ export default function Dashboard() {
                   <h3>{connected ? '没有匹配的房间' : '等待连接录播姬'}</h3>
                   <p>
                     {connected
-                      ? '尝试更换筛选条件或添加一个新的直播间'
-                      : '填写 API 地址与 Basic Auth 凭据后开始监控'}
+                      ? '试试其他筛选条件，或添加直播间'
+                      : '完成连接设置后即可开始使用'}
                   </p>
                   {!connected && (
                     <button className="button button-primary" type="button" onClick={openSettings}>
@@ -1114,7 +1114,7 @@ export default function Dashboard() {
               <div>
                 <span className="section-kicker">CONNECTION</span>
                 <h2>连接设置</h2>
-                <p>连接录播姬 REST API</p>
+                <p>填写录播姬连接信息</p>
               </div>
               <button
                 className="modal-close"
@@ -1128,7 +1128,7 @@ export default function Dashboard() {
 
             <div className="modal-body">
               <label className="field">
-                <span>录播姬 API 地址</span>
+                <span>服务地址</span>
                 <div className="input-shell">
                   <Server size={17} />
                   <input
@@ -1141,7 +1141,7 @@ export default function Dashboard() {
                     placeholder="http://192.168.5.66:2356"
                   />
                 </div>
-                <small>填写服务根地址，无需附加 /api</small>
+                <small>例如 http://192.168.5.66:2356</small>
               </label>
 
               <div className="field-row">
@@ -1158,7 +1158,7 @@ export default function Dashboard() {
                           username: event.target.value
                         }))
                       }
-                      placeholder="Basic Auth 用户名"
+                      placeholder="用户名"
                       autoComplete="username"
                     />
                   </div>
@@ -1177,7 +1177,7 @@ export default function Dashboard() {
                           password: event.target.value
                         }))
                       }
-                      placeholder="Basic Auth 密码"
+                      placeholder="密码"
                       autoComplete="current-password"
                     />
                     <button
@@ -1195,7 +1195,7 @@ export default function Dashboard() {
               <label className="switch-row">
                 <div>
                   <strong>记住密码</strong>
-                  <span>下次打开桌面应用时自动恢复连接</span>
+                  <span>下次启动时自动连接</span>
                 </div>
                 <input
                   type="checkbox"
@@ -1213,9 +1213,8 @@ export default function Dashboard() {
               <div className="security-note">
                 <ShieldAlert size={20} />
                 <p>
-                  <strong>本地凭据提示</strong>
-                  开启后，密码会按你的设置保存在此应用 WebView 的 localStorage 中，不写入项目源码。
-                  请仅在可信设备上使用。
+                  <strong>密码保存在本机</strong>
+                  仅建议在自己的设备上开启。
                 </p>
               </div>
             </div>
@@ -1223,7 +1222,7 @@ export default function Dashboard() {
             <footer className="modal-actions modal-actions-split">
               <button className="text-button danger-text" type="button" onClick={clearCredentials}>
                 <Trash2 size={14} />
-                清除已保存凭据
+                清除登录信息
               </button>
               <div>
                 <button
@@ -1251,7 +1250,7 @@ export default function Dashboard() {
               <div>
                 <span className="section-kicker">NEW ROOM</span>
                 <h2>添加直播间</h2>
-                <p>将新的 Bilibili 直播间加入录制矩阵</p>
+                <p>添加一个 Bilibili 直播间</p>
               </div>
               <button
                 className="modal-close"
@@ -1296,7 +1295,7 @@ export default function Dashboard() {
                     ? `已识别房间号：${parsedNewRoomId}`
                     : newRoomInput.trim()
                       ? '未识别到有效房间号，请检查链接格式'
-                      : '支持直接粘贴 Bilibili 直播间链接，查询参数会自动忽略'}
+                       : '粘贴直播间链接即可自动识别房间号'}
                 </small>
               </label>
               <label className="switch-row">

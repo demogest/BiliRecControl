@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Clock3,
   Copy,
-  Database,
   FileCode2,
   HardDrive,
   Info,
@@ -69,10 +68,10 @@ type Props = {
 const GROUPS: Array<{ key: FieldDescriptor['group']; label: string; hint: string }> = [
   { key: 'recording', label: '录制与分段', hint: '录制模式、画质、自动分段和标题规则' },
   { key: 'danmaku', label: '弹幕与互动', hint: '弹幕正文、礼物、舰长和传输协议' },
-  { key: 'file', label: '文件与集成', hint: '文件名、FLV 修复、Webhook 和自定义脚本' },
-  { key: 'network', label: '网络策略', hint: 'API 主机、代理和 IP 地址族' },
-  { key: 'timing', label: '超时与重试', hint: '检查、连接、重试和缓冲刷新参数' },
-  { key: 'desktop', label: '桌面体验', hint: '录播姬桌面端显示与通知选项' }
+  { key: 'file', label: '文件与集成', hint: '文件名、修复和外部集成' },
+  { key: 'network', label: '网络策略', hint: '连接、代理与网络协议' },
+  { key: 'timing', label: '超时与重试', hint: '检查与重试间隔' },
+  { key: 'desktop', label: '桌面体验', hint: '显示与通知' }
 ];
 
 const FIELDS: FieldDescriptor[] = [
@@ -80,12 +79,12 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalRecordMode',
     defaultKey: 'recordMode',
     label: '录制模式',
-    hint: 'Standard 会修复流；Raw 保存原始直播流。',
+    hint: '标准模式会修复流；Raw 模式保留原始数据。',
     group: 'recording',
     kind: 'select',
     room: true,
     options: [
-      { value: 0, label: 'Standard · 标准修复模式' },
+      { value: 0, label: 'Standard · 标准模式' },
       { value: 1, label: 'Raw · 原始流模式' }
     ]
   },
@@ -116,7 +115,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalCuttingByTitle',
     defaultKey: 'cuttingByTitle',
     label: '标题变化时分段',
-    hint: '主播修改直播标题后立即开启新分段。',
+    hint: '直播标题变化时开启新分段。',
     group: 'recording',
     kind: 'boolean',
     room: true
@@ -125,7 +124,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalRecordingQuality',
     defaultKey: 'recordingQuality',
     label: '直播画质优先级',
-    hint: '按顺序填写可接受的编码与清晰度，如 avc10000,hevc10000。',
+    hint: '按优先顺序填写画质，如 avc10000,hevc10000。',
     group: 'recording',
     kind: 'textarea',
     room: true
@@ -134,7 +133,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalSaveStreamCover',
     defaultKey: 'saveStreamCover',
     label: '保存直播封面',
-    hint: '开始录制时同时保存直播封面。',
+    hint: '录制开始时保存直播封面。',
     group: 'recording',
     kind: 'boolean',
     room: true
@@ -143,7 +142,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalRecordDanmaku',
     defaultKey: 'recordDanmaku',
     label: '录制弹幕',
-    hint: '将弹幕保存为与视频配套的 XML 文件。',
+    hint: '将弹幕保存为 XML 文件。',
     group: 'danmaku',
     kind: 'boolean',
     room: true
@@ -152,7 +151,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalRecordDanmakuRaw',
     defaultKey: 'recordDanmakuRaw',
     label: '保留原始弹幕数据',
-    hint: '在 XML 中保留录播姬收到的原始数据。',
+    hint: '在 XML 中保留原始数据。',
     group: 'danmaku',
     kind: 'boolean',
     room: true
@@ -188,7 +187,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalDanmakuTransport',
     defaultKey: 'danmakuTransport',
     label: '弹幕传输协议',
-    hint: '选择连接弹幕服务器使用的传输协议。',
+    hint: '选择弹幕连接使用的协议。',
     group: 'danmaku',
     kind: 'select',
     room: false,
@@ -203,7 +202,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalDanmakuAuthenticateWithStreamerUid',
     defaultKey: 'danmakuAuthenticateWithStreamerUid',
     label: '使用主播 UID 认证弹幕',
-    hint: '使用直播间主播 UID 完成弹幕服务器认证。',
+    hint: '使用主播 UID 进行弹幕认证。',
     group: 'danmaku',
     kind: 'boolean',
     room: false
@@ -212,7 +211,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalRecordDanmakuFlushInterval',
     defaultKey: 'recordDanmakuFlushInterval',
     label: '弹幕缓冲刷新数量',
-    hint: '累计指定数量后刷新弹幕写入缓冲。',
+    hint: '累计指定数量后写入弹幕。',
     group: 'danmaku',
     kind: 'number',
     room: false,
@@ -222,7 +221,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalFileNameRecordTemplate',
     defaultKey: 'fileNameRecordTemplate',
     label: '录制文件名模板',
-    hint: 'Liquid 模板；可在“文件名工具”中先预览生成结果。',
+    hint: '支持 Liquid 模板，可先在文件名工具中预览。',
     group: 'file',
     kind: 'textarea',
     room: false
@@ -231,7 +230,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalFlvProcessorSplitOnScriptTag',
     defaultKey: 'flvProcessorSplitOnScriptTag',
     label: 'FLV 数据缺失时分段',
-    hint: '检测到脚本标签指示数据可能缺失时自动分段。',
+    hint: '检测到数据可能缺失时自动分段。',
     group: 'file',
     kind: 'boolean',
     room: true
@@ -249,7 +248,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalFlvWriteMetadata',
     defaultKey: 'flvWriteMetadata',
     label: '写入 FLV Metadata',
-    hint: '把直播信息写入视频文件 Metadata。',
+    hint: '将直播信息写入视频文件。',
     group: 'file',
     kind: 'boolean',
     room: false
@@ -258,7 +257,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalTitleFilterPatterns',
     defaultKey: 'titleFilterPatterns',
     label: '不录制标题正则',
-    hint: '匹配这些正则表达式的直播标题将不会录制。',
+    hint: '不录制与规则匹配的直播标题。',
     group: 'file',
     kind: 'textarea',
     room: true
@@ -285,7 +284,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalCookie',
     defaultKey: 'cookie',
     label: 'Bilibili Cookie',
-    hint: '敏感字段，仅在需要登录态画质或接口时设置。',
+    hint: '仅在需要登录权限时填写。',
     group: 'network',
     kind: 'secret',
     room: false
@@ -303,7 +302,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalNetworkTransportUseSystemProxy',
     defaultKey: 'networkTransportUseSystemProxy',
     label: '使用系统代理',
-    hint: '录播姬对外网络请求跟随 Windows 系统代理。',
+    hint: '网络请求使用系统代理。',
     group: 'network',
     kind: 'boolean',
     room: false
@@ -312,7 +311,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalNetworkTransportAllowedAddressFamily',
     defaultKey: 'networkTransportAllowedAddressFamily',
     label: '允许的 IP 地址族',
-    hint: '限制录播姬连接直播和弹幕服务器时使用的网络协议。',
+    hint: '选择直播与弹幕连接使用的网络协议。',
     group: 'network',
     kind: 'select',
     room: false,
@@ -327,7 +326,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalTimingCheckInterval',
     defaultKey: 'timingCheckInterval',
     label: '主动检查间隔',
-    hint: '轮询直播间状态的主动检查间隔。',
+    hint: '检查直播间状态的间隔。',
     group: 'timing',
     kind: 'number',
     room: false,
@@ -337,7 +336,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalTimingApiTimeout',
     defaultKey: 'timingApiTimeout',
     label: '直播 API 超时',
-    hint: '请求 Bilibili 直播 API 的超时时间。',
+    hint: '获取直播信息的超时时间。',
     group: 'timing',
     kind: 'number',
     room: false,
@@ -387,7 +386,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalTimingWatchdogTimeout',
     defaultKey: 'timingWatchdogTimeout',
     label: '直播数据看门狗超时',
-    hint: '持续未收到直播数据达到此时间后触发恢复。',
+    hint: '长时间没有直播数据时尝试恢复。',
     group: 'timing',
     kind: 'number',
     room: false,
@@ -397,7 +396,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalWpfShowTitleAndArea',
     defaultKey: 'wpfShowTitleAndArea',
     label: '桌面端显示标题与分区',
-    hint: '控制录播姬原生桌面界面的信息显示。',
+    hint: '在录播姬中显示标题与分区。',
     group: 'desktop',
     kind: 'boolean',
     room: false
@@ -406,7 +405,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalWpfNotifyStreamStart',
     defaultKey: 'wpfNotifyStreamStart',
     label: '开播系统通知',
-    hint: '录播姬原生桌面端检测到开播时发送通知。',
+    hint: '检测到开播时发送系统通知。',
     group: 'desktop',
     kind: 'boolean',
     room: false
@@ -415,7 +414,7 @@ const FIELDS: FieldDescriptor[] = [
     key: 'optionalUserScript',
     defaultKey: 'userScript',
     label: '自定义脚本',
-    hint: '录播姬高级自定义脚本内容。',
+    hint: '用于高级自动化的自定义脚本。',
     group: 'file',
     kind: 'textarea',
     room: false
@@ -427,7 +426,7 @@ const QUALITY_PRESETS = [
     id: 'original',
     label: '原画优先',
     value: 'avc10000,hevc10000',
-    description: '录播姬默认方案，兼顾 AVC 与 HEVC 原画。',
+    description: '兼顾 AVC 与 HEVC 原画。',
     recommended: true
   },
   {
@@ -435,21 +434,21 @@ const QUALITY_PRESETS = [
     label: '最高画质优先',
     value:
       'avc30000,hevc30000,avc25000,hevc25000,avc20000,hevc20000,avc15000,hevc15000,avc10000,hevc10000',
-    description: '依次尝试杜比、真彩、4K、2K与原画，保留原画兜底。',
+    description: '优先尝试最高画质，并保留原画兜底。',
     recommended: false
   },
   {
     id: 'compatible',
     label: 'AVC 兼容',
     value: 'avc10000,avc400,avc250,avc150,avc80',
-    description: '仅使用 H.264，优先原画，适合旧播放器和剪辑软件。',
+    description: '使用 H.264，兼容更多播放器与剪辑软件。',
     recommended: false
   },
   {
     id: 'economy',
     label: '节省空间',
     value: 'avc400,avc250,avc150,avc80,avc10000',
-    description: '优先蓝光或更低画质，并用原画避免开播初段漏录。',
+    description: '优先较低画质，减少存储占用。',
     recommended: false
   }
 ] as const;
@@ -493,7 +492,7 @@ const WORKFLOW_PRESETS = [
   {
     id: 'safe',
     label: '稳妥录制',
-    description: '标准修复、原画优先、保存封面，不记录体积较大的原始弹幕。',
+    description: '原画优先并保存封面，适合大多数场景。',
     icon: ShieldCheck,
     values: {
       optionalRecordMode: 0,
@@ -505,7 +504,7 @@ const WORKFLOW_PRESETS = [
   {
     id: 'archive',
     label: '高质量归档',
-    description: '尝试最高画质，保存封面、弹幕、礼物、SuperChat 和上舰事件。',
+    description: '优先最高画质，并完整保存直播互动。',
     icon: HardDrive,
     values: {
       optionalRecordMode: 0,
@@ -521,7 +520,7 @@ const WORKFLOW_PRESETS = [
   {
     id: 'light',
     label: '轻量省空间',
-    description: '优先较低 AVC 画质，关闭封面和弹幕原始数据，保留原画兜底。',
+    description: '优先较低画质，减少文件占用。',
     icon: Activity,
     values: {
       optionalRecordMode: 0,
@@ -777,7 +776,7 @@ export default function ConfigurationCenter({
       });
       return next;
     });
-    notify(`已应用“${label}”到全局草稿，请确认后保存`, 'success');
+    notify(`已选择“${label}”，保存后生效`, 'success');
   };
 
   const chooseTemplatePreset = (preset: (typeof TEMPLATE_PRESETS)[number]) => {
@@ -789,7 +788,7 @@ export default function ConfigurationCenter({
     const field = FIELDS.find((item) => item.key === 'optionalFileNameRecordTemplate');
     if (!field || !template.trim()) return;
     setGlobalOptional(field, { hasValue: true, value: template });
-    notify('文件名模板已加入全局草稿，保存后生效', 'success');
+    notify('已应用文件名模板，保存后生效', 'success');
   };
 
   const renderField = (scope: 'global' | 'room', field: FieldDescriptor) => {
@@ -909,7 +908,7 @@ export default function ConfigurationCenter({
       );
       setGlobalConfig(saved);
       setGlobalDraft(copyValue(saved));
-      notify('全局设置已保存到录播姬', 'success');
+      notify('全局设置已保存', 'success');
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error), 'error');
     } finally {
@@ -947,7 +946,7 @@ export default function ConfigurationCenter({
     try {
       parsedJson = JSON.parse(contextJson || '{}');
     } catch {
-      notify('模板上下文 JSON 格式无效', 'error');
+      notify('扩展数据格式不正确', 'error');
       return;
     }
 
@@ -973,7 +972,7 @@ export default function ConfigurationCenter({
         { template, context }
       );
       setTemplateResult(result);
-      notify(result.status === 0 ? '文件名生成成功' : '模板已返回校验结果', result.status === 0 ? 'success' : 'info');
+      notify(result.status === 0 ? '路径预览已生成' : '请检查模板设置', result.status === 0 ? 'success' : 'info');
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error), 'error');
     } finally {
@@ -988,9 +987,9 @@ export default function ConfigurationCenter({
       await navigator.clipboard.writeText(value);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
-      notify('已复制生成路径', 'success');
+      notify('已复制路径', 'success');
     } catch {
-      notify('复制生成路径失败', 'error');
+      notify('复制路径失败', 'error');
     }
   };
 
@@ -1008,13 +1007,13 @@ export default function ConfigurationCenter({
             <div>
               <span className="section-kicker">RECORDING SETUP</span>
               <h2>录制设置</h2>
-              <p>用快捷方案完成常用配置，需要时再调整高级参数</p>
+              <p>快速完成常用设置，也可按需细调</p>
             </div>
           </div>
           <div className="config-header-status">
             <span className={globalDirty ? 'has-draft' : ''}>
               {globalDirty ? <Save size={14} /> : <CheckCircle2 size={14} />}
-              {globalDirty ? '有未保存修改' : '已与录播姬同步'}
+              {globalDirty ? '有未保存修改' : '设置已同步'}
             </span>
             <button
               className="button button-secondary"
@@ -1023,7 +1022,7 @@ export default function ConfigurationCenter({
               onClick={() => void loadBase()}
             >
               <RefreshCw size={15} className={loading ? 'spin' : ''} />
-              重新读取
+              刷新
             </button>
             <button className="modal-close" type="button" onClick={onClose} aria-label="关闭配置中心">
               <X size={18} />
@@ -1054,8 +1053,8 @@ export default function ConfigurationCenter({
           {loading && !globalDraft ? (
             <div className="config-loading">
               <RefreshCw size={28} className="spin" />
-              <strong>正在读取录播姬配置</strong>
-              <span>通过 Rust 后端加载默认与全局设置</span>
+              <strong>正在加载设置</strong>
+              <span>请稍候…</span>
             </div>
           ) : tab === 'quick' ? (
             <div className="config-page quick-setup-page">
@@ -1063,7 +1062,7 @@ export default function ConfigurationCenter({
                 <div>
                   <span className="section-kicker">QUICK START</span>
                   <h3>选择一个录制方案</h3>
-                  <p>快捷方案只修改本地草稿。检查右侧状态后点击保存，才会提交给录播姬。</p>
+                  <p>选择方案后，点击保存即可应用。</p>
                 </div>
                 <div className="config-page-actions">
                   <span className={globalDirty ? 'dirty-chip is-dirty' : 'dirty-chip'}>
@@ -1076,7 +1075,7 @@ export default function ConfigurationCenter({
                     onClick={() => void saveGlobal()}
                   >
                     <Save size={16} />
-                    保存到录播姬
+                    保存设置
                   </button>
                 </div>
               </div>
@@ -1087,7 +1086,7 @@ export default function ConfigurationCenter({
                     <span>01</span>
                     <div>
                       <h4>常用录制方案</h4>
-                      <p>一次设置录制模式、画质、封面与弹幕策略。</p>
+                      <p>一次完成画质、封面和弹幕设置。</p>
                     </div>
                   </div>
                 </header>
@@ -1124,7 +1123,7 @@ export default function ConfigurationCenter({
                     <span>02</span>
                     <div>
                       <h4>画质快捷设置</h4>
-                      <p>顺序代表优先级；录播姬会录制直播服务器实际提供的画质。</p>
+                      <p>按优先顺序尝试可用画质。</p>
                     </div>
                   </div>
                   <button className="quick-text-link" type="button" onClick={() => setTab('global')}>
@@ -1156,8 +1155,7 @@ export default function ConfigurationCenter({
                 <div className="inline-guide quality-guide">
                   <Info size={17} />
                   <p>
-                    画质 ID 不是码率、分辨率或帧率。所有主播刚开播时可能只有原画，
-                    所以每个预设都保留了 <code>10000</code> 兜底，避免开播初段漏录。
+                    已保留原画作为兜底，避免开播初期漏录。
                   </p>
                 </div>
               </section>
@@ -1168,7 +1166,7 @@ export default function ConfigurationCenter({
                     <span>03</span>
                     <div>
                       <h4>文件名与目录方案</h4>
-                      <p>先选择结构，再到模板工具使用真实房间预览结果。</p>
+                      <p>选择目录结构后，可继续调整并预览。</p>
                     </div>
                   </div>
                 </header>
@@ -1198,22 +1196,22 @@ export default function ConfigurationCenter({
                 <article>
                   <ShieldCheck size={19} />
                   <div>
-                    <strong>推荐使用标准模式</strong>
-                    <p>标准模式会分析并修复直播流，也支持自动与手动分段。Raw 模式更适合故障取证。</p>
+                    <strong>标准模式更省心</strong>
+                    <p>适合大多数场景，并支持流修复和分段。</p>
                   </div>
                 </article>
                 <article>
                   <Braces size={19} />
                   <div>
-                    <strong>模板修改前先预览</strong>
-                    <p>文件名使用 Liquid 语法。语法错误时录播姬会退回默认模板。</p>
+                    <strong>保存前先预览</strong>
+                    <p>确认文件名和目录符合预期。</p>
                   </div>
                 </article>
                 <article>
                   <Radio size={19} />
                   <div>
-                    <strong>房间设置优先级更高</strong>
-                    <p>房间独立设置会覆盖全局值；关闭“独立”即可恢复继承。</p>
+                    <strong>房间设置优先生效</strong>
+                    <p>关闭“独立”即可恢复全局设置。</p>
                   </div>
                 </article>
               </div>
@@ -1224,11 +1222,11 @@ export default function ConfigurationCenter({
                 <div>
                   <span className="section-kicker">DETAILED SETTINGS</span>
                   <h3>详细录制设置</h3>
-                  <p>“默认”表示继承录播姬内置值；常用设置优先显示，网络与超时参数归入高级区域。</p>
+                  <p>常用选项优先显示，高级选项可按需展开。</p>
                 </div>
                 <div className="config-page-actions">
                   <span className={globalDirty ? 'dirty-chip is-dirty' : 'dirty-chip'}>
-                    {globalDirty ? '有未保存修改' : '已与服务器同步'}
+                    {globalDirty ? '有未保存修改' : '设置已同步'}
                   </span>
                   <button
                     className="button button-primary"
@@ -1245,7 +1243,7 @@ export default function ConfigurationCenter({
               <div className="config-notice">
                 <ShieldCheck size={19} />
                 <p>
-                  修改只会在点击保存后提交。Cookie 使用密码框显示，不会写入前端日志。
+                  修改将在保存后生效。敏感信息会隐藏显示。
                 </p>
               </div>
 
@@ -1253,7 +1251,7 @@ export default function ConfigurationCenter({
                 <header>
                   <div>
                     <h4>画质快速选择</h4>
-                    <p>也可以在下方“录制与分段”中手动填写优先级列表。</p>
+                    <p>选择常用画质，也可在下方自定义。</p>
                   </div>
                 </header>
                 <div>
@@ -1307,8 +1305,8 @@ export default function ConfigurationCenter({
               >
                 <Settings2 size={16} />
                 <span>
-                  <strong>{showAdvanced ? '收起高级设置' : '显示网络、超时与桌面高级设置'}</strong>
-                  <small>日常录制通常不需要修改这些参数</small>
+                  <strong>{showAdvanced ? '收起高级设置' : '显示高级设置'}</strong>
+                  <small>一般无需调整</small>
                 </span>
               </button>
             </div>
@@ -1318,7 +1316,7 @@ export default function ConfigurationCenter({
                 <div>
                   <span className="section-kicker">ROOM CONFIG & DETAILS</span>
                   <h3>房间独立设置</h3>
-                  <p>读取房间详情、录制统计、IO 统计，并按 objectId 保存独立覆盖值。</p>
+                  <p>为指定房间设置独立规则。</p>
                 </div>
                 <div className="room-picker">
                   <span>当前房间</span>
@@ -1363,18 +1361,13 @@ export default function ConfigurationCenter({
                       <span>当前文件</span>
                       <strong>{formatBytes(roomStats?.currentFileSize || 0)}</strong>
                     </article>
-                    <article className="room-object-card">
-                      <Database size={18} />
-                      <span>objectId</span>
-                      <strong title={selectedRoom.objectId}>{selectedRoom.objectId}</strong>
-                    </article>
                   </div>
 
                   <section className="config-group room-auto-group">
                     <header>
                       <div>
                         <h4>房间行为</h4>
-                        <p>每个房间固定拥有的独立开关。</p>
+                        <p>仅影响当前房间。</p>
                       </div>
                       <div className="config-page-actions">
                         <span className={roomDirty ? 'dirty-chip is-dirty' : 'dirty-chip'}>
@@ -1422,7 +1415,7 @@ export default function ConfigurationCenter({
                         <header>
                           <div>
                             <h4>{group.label}</h4>
-                            <p>关闭独立值时继承当前全局有效设置。</p>
+                            <p>关闭“独立”后使用全局设置。</p>
                           </div>
                           <span>{fields.length} 项</span>
                         </header>
@@ -1437,7 +1430,7 @@ export default function ConfigurationCenter({
                 <div className="config-empty">
                   <Radio size={30} />
                   <h4>暂无可配置房间</h4>
-                  <p>先在主界面添加直播间，再设置独立录制策略。</p>
+                  <p>先在主界面添加直播间。</p>
                 </div>
               )}
             </div>
@@ -1447,7 +1440,7 @@ export default function ConfigurationCenter({
                 <div>
                   <span className="section-kicker">FILENAME GENERATOR</span>
                   <h3>录制文件名模板工具</h3>
-                  <p>调用录播姬原生模板引擎预览相对路径与完整文件路径，不会创建文件。</p>
+                  <p>预览文件路径，不会创建文件。</p>
                 </div>
                 <div className="room-picker">
                   <span>模拟房间</span>
@@ -1468,7 +1461,7 @@ export default function ConfigurationCenter({
                 <header>
                   <div>
                     <h4>选择目录结构</h4>
-                    <p>选中后仍可在编辑器中微调；不会立即修改服务器配置。</p>
+                    <p>选择后仍可继续调整。</p>
                   </div>
                 </header>
                 <div className="template-preset-grid">
@@ -1503,7 +1496,7 @@ export default function ConfigurationCenter({
                   </label>
                   <div className="filename-context-row">
                     <label>
-                      <span>分段序号 partIndex</span>
+                      <span>分段序号</span>
                       <input
                         type="number"
                         min="0"
@@ -1512,7 +1505,7 @@ export default function ConfigurationCenter({
                       />
                     </label>
                     <label>
-                      <span>画质编号 qn</span>
+                      <span>画质编号</span>
                       <input
                         type="number"
                         min="0"
@@ -1522,9 +1515,9 @@ export default function ConfigurationCenter({
                     </label>
                   </div>
                   <details className="filename-advanced-context">
-                    <summary>高级：扩展上下文 JSON</summary>
+                    <summary>高级：扩展数据</summary>
                     <label>
-                      <span>仅在模板使用 json 变量时需要</span>
+                      <span>仅在模板需要额外数据时填写</span>
                       <textarea
                         rows={5}
                         value={contextJson}
@@ -1550,7 +1543,7 @@ export default function ConfigurationCenter({
                       onClick={applyTemplateToGlobal}
                     >
                       <Save size={16} />
-                      应用到全局草稿
+                      应用到全局设置
                     </button>
                   </div>
                   <div className="template-variable-guide">
@@ -1568,7 +1561,7 @@ export default function ConfigurationCenter({
                     <FileCode2 size={20} />
                     <div>
                       <strong>生成结果</strong>
-                      <span>使用当前房间数据由录播姬原生引擎预览</span>
+                       <span>使用当前房间信息预览</span>
                     </div>
                   </header>
                   {templateResult ? (
@@ -1600,13 +1593,13 @@ export default function ConfigurationCenter({
                   ) : (
                     <div className="filename-placeholder">
                       <Braces size={34} />
-                      <strong>等待生成</strong>
-                      <p>模板将使用当前房间的标题、主播、分区、UID 与画质上下文。</p>
+                      <strong>等待预览</strong>
+                      <p>填写模板后即可预览结果。</p>
                     </div>
                   )}
                   {selectedRoom && (
                     <div className="filename-room-context">
-                      <span>当前上下文</span>
+                      <span>当前房间</span>
                       <strong>{selectedRoom.name || selectedRoom.roomId}</strong>
                       <small>
                         roomId {selectedRoom.roomId} · uid {selectedRoom.uid} · qn {qualityNumber}
@@ -1620,8 +1613,8 @@ export default function ConfigurationCenter({
         </div>
 
         <footer className="config-center-footer">
-          <span><Network size={14} /> Next.js 仅通过 Tauri IPC 通讯</span>
-          <span><Activity size={14} /> 录播姬 API {connection.apiUrl}</span>
+          <span><Network size={14} /> 设置保存在录播姬中</span>
+          <span><Activity size={14} /> 连接状态正常</span>
         </footer>
       </section>
     </div>

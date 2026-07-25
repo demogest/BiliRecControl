@@ -80,7 +80,7 @@ export default function UpdateCenter({ notify }: Props) {
           if (!silent) {
             setOpen(true);
             setStatus('error');
-            setErrorMessage('应用内更新仅在已安装的桌面版本中可用。');
+            setErrorMessage('请在已安装的桌面应用中使用更新功能。');
           }
           return;
         }
@@ -105,7 +105,7 @@ export default function UpdateCenter({ notify }: Props) {
           setCurrentVersion(update.currentVersion);
           setAvailableVersion(update.version);
           setReleaseDate(update.date || '');
-          setReleaseNotes(update.body || '此版本未提供更新说明。');
+          setReleaseNotes(update.body || '此版本暂无更新说明。');
           setStatus('available');
           setOpen(true);
           notify(`发现新版本 ${update.version}`, 'info');
@@ -258,7 +258,7 @@ export default function UpdateCenter({ notify }: Props) {
               <div>
                 <span className="section-kicker">APPLICATION UPDATE</span>
                 <h2>应用更新</h2>
-                <p>从 GitHub Releases 获取并验证官方更新包</p>
+                <p>获取最新功能和修复</p>
               </div>
               <button
                 className="modal-close"
@@ -276,7 +276,7 @@ export default function UpdateCenter({ notify }: Props) {
                 <div className="update-state">
                   <RefreshCw size={28} className="spin" />
                   <strong>正在检查新版本</strong>
-                  <span>连接 GitHub Releases 更新通道…</span>
+                  <span>正在连接更新服务…</span>
                 </div>
               )}
 
@@ -362,7 +362,7 @@ export default function UpdateCenter({ notify }: Props) {
 
                   <div className="update-security-note">
                     <ShieldCheck size={18} />
-                    <p>更新包会经过 Tauri 签名校验；签名不匹配时不会安装。</p>
+                    <p>更新文件会自动校验，确保来源可信。</p>
                   </div>
                 </>
               )}
@@ -370,14 +370,14 @@ export default function UpdateCenter({ notify }: Props) {
               {status === 'error' && (
                 <div className="update-state is-error">
                   <CloudDownload size={30} />
-                  <strong>暂时无法完成更新检查</strong>
+                  <strong>检查更新失败</strong>
                   <span>{errorMessage || '请稍后重试。'}</span>
                 </div>
               )}
             </div>
 
             <footer className="modal-actions update-actions">
-              <span>{currentVersion ? `当前版本 ${currentVersion}` : '稳定更新通道'}</span>
+              <span>{currentVersion ? `当前版本 ${currentVersion}` : '正式版通道'}</span>
               <div>
                 {status !== 'downloading' && status !== 'ready' && (
                   <button

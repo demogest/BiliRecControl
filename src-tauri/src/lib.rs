@@ -104,23 +104,23 @@ struct MpvPlayResult {
 
 fn validate_connection(connection: &ApiConnection) -> Result<(), String> {
     if connection.username.trim().is_empty() || connection.password.is_empty() {
-        return Err("请填写 Basic Auth 用户名和密码".into());
+        return Err("请填写用户名和密码".into());
     }
     Ok(())
 }
 
 fn normalize_base_url(connection: &ApiConnection) -> Result<Url, String> {
     let mut base = Url::parse(connection.api_url.trim())
-        .map_err(|_| "API 地址格式无效，请填写完整的 http(s) 地址".to_string())?;
+        .map_err(|_| "服务地址格式不正确，请填写完整的 http(s) 地址".to_string())?;
 
     if !matches!(base.scheme(), "http" | "https") {
-        return Err("API 地址必须使用 http 或 https".into());
+        return Err("服务地址必须使用 http 或 https".into());
     }
 
     base.set_username("")
-        .map_err(|_| "API 地址中的用户名无效".to_string())?;
+        .map_err(|_| "服务地址中的用户名无效".to_string())?;
     base.set_password(None)
-        .map_err(|_| "API 地址中的密码无效".to_string())?;
+        .map_err(|_| "服务地址中的密码无效".to_string())?;
     base.set_query(None);
     base.set_fragment(None);
     Ok(base)
@@ -165,7 +165,7 @@ async fn fetch_json<T: DeserializeOwned>(
         .header(reqwest::header::ACCEPT, "application/json")
         .send()
         .await
-        .map_err(|error| format!("无法连接录播姬 API：{error}"))?;
+        .map_err(|error| format!("无法连接录播姬：{error}"))?;
     let status = response.status();
     let text = response
         .text()
@@ -173,7 +173,7 @@ async fn fetch_json<T: DeserializeOwned>(
         .map_err(|error| format!("读取录播姬响应失败：{error}"))?;
 
     if !status.is_success() {
-        return Err(format!("录播姬文件 API 返回 HTTP {}", status.as_u16()));
+        return Err(format!("读取录制文件失败（HTTP {}）", status.as_u16()));
     }
 
     serde_json::from_str(&text).map_err(|error| format!("解析录播姬文件响应失败：{error}"))
@@ -373,7 +373,7 @@ async fn bilirec_request(
     let response = request
         .send()
         .await
-        .map_err(|error| format!("无法连接录播姬 API：{error}"))?;
+        .map_err(|error| format!("无法连接录播姬：{error}"))?;
     let status = response.status();
     let text = response
         .text()
@@ -524,7 +524,7 @@ fn play_with_mpv(
     validate_connection(&connection)?;
     let target = build_file_url(&connection, &file_url)?;
     let player = find_mpv().ok_or_else(|| {
-        "未找到 MPV。请安装 MPV，或通过 MPV_PATH 环境变量指定 mpv.exe。".to_string()
+        "未找到 MPV，请先安装后重试。".to_string()
     })?;
     let token = BASE64.encode(format!("{}:{}", connection.username, connection.password));
     let auth_header = format!("Authorization: Basic {token}");

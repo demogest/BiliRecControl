@@ -30,7 +30,7 @@ function errorMessage(data: TauriApiResponse<unknown>['data'], status: number) {
   if (status === 404) {
     return '目标房间或接口不存在';
   }
-  return `录播姬 API 返回错误（HTTP ${status}）`;
+  return `服务请求失败（HTTP ${status}）`;
 }
 
 export async function bilirecRequest<T>(
