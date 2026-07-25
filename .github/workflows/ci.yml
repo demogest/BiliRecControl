@@ -88,6 +88,7 @@ jobs:
             librsvg2-dev \
             patchelf \
             libfuse2 \
+            xdg-utils \
             rpm \
             zip
 

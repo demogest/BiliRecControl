@@ -333,12 +333,14 @@ fn find_mpv() -> Option<PathBuf> {
 }
 
 fn command_without_console(path: &Path) -> Command {
-    let mut command = Command::new(path);
+    let command = Command::new(path);
     #[cfg(target_os = "windows")]
-    {
+    let command = {
         use std::os::windows::process::CommandExt;
+        let mut command = command;
         command.creation_flags(0x0800_0000);
-    }
+        command
+    };
     command
 }
 
