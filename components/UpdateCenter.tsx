@@ -10,6 +10,7 @@ import {
   X
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { DownloadEvent, Update } from '@tauri-apps/plugin-updater';
 import type { ToastItem } from '@/lib/types';
 
@@ -31,6 +32,7 @@ function runningInTauri() {
 }
 
 export default function UpdateCenter({ notify }: Props) {
+  const [portalReady, setPortalReady] = useState(false);
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<UpdateStatus>('idle');
   const [currentVersion, setCurrentVersion] = useState('');
@@ -42,6 +44,10 @@ export default function UpdateCenter({ notify }: Props) {
   const [totalBytes, setTotalBytes] = useState(0);
   const updateRef = useRef<Update | null>(null);
   const automaticCheckStarted = useRef(false);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     if (!runningInTauri()) return;
@@ -102,6 +108,26 @@ export default function UpdateCenter({ notify }: Props) {
     return () => window.clearTimeout(timer);
   }, [checkForUpdates]);
 
+  const closeUpdateModal = useCallback(() => {
+    if (status !== 'downloading') setOpen(false);
+  }, [status]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeUpdateModal();
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [closeUpdateModal, open]);
+
   const installUpdate = async () => {
     const update = updateRef.current;
     if (!update) return;
@@ -156,8 +182,16 @@ export default function UpdateCenter({ notify }: Props) {
         {status === 'available' && <i />}
       </button>
 
-      {open && (
-        <div className="modal-backdrop update-backdrop" role="presentation">
+      {portalReady &&
+        open &&
+        createPortal(
+          <div
+            className="modal-backdrop update-backdrop"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) closeUpdateModal();
+            }}
+          >
           <section
             className="modal-card update-modal"
             role="dialog"
@@ -174,7 +208,7 @@ export default function UpdateCenter({ notify }: Props) {
                 className="modal-close"
                 type="button"
                 disabled={status === 'downloading'}
-                onClick={() => setOpen(false)}
+                onClick={closeUpdateModal}
                 aria-label="关闭更新窗口"
               >
                 <X size={18} />
@@ -286,8 +320,9 @@ export default function UpdateCenter({ notify }: Props) {
               </div>
             </footer>
           </section>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </>
   );
 }

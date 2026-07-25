@@ -1893,10 +1893,19 @@ main {
 }
 
 .update-modal {
+  display: flex;
   width: min(560px, calc(100vw - 48px));
+  max-height: calc(100dvh - 48px);
+  flex-direction: column;
 }
 
 .update-modal-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+.update-modal .update-state {
   min-height: 230px;
 }
 
@@ -2069,6 +2078,7 @@ main {
 }
 
 .update-actions {
+  flex: 0 0 auto;
   justify-content: space-between;
 }
 
