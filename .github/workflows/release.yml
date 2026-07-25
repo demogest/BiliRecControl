@@ -207,6 +207,7 @@ jobs:
           releaseDraft: true
           prerelease: false
           updaterJsonPreferNsis: true
+          uploadUpdaterJson: false
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
 
       - name: Create Windows portable ZIP
@@ -260,9 +261,12 @@ jobs:
       - build-release
     runs-on: ubuntu-latest
     steps:
-      - name: Synchronize updater release notes
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Rebuild updater manifest and synchronize release notes
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
         shell: bash
         run: |
@@ -270,34 +274,12 @@ jobs:
           work_dir="${RUNNER_TEMP}/updater-release-notes"
           mkdir -p "${work_dir}"
 
-          release_body="$(
-            gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --jq '.body // ""'
-          )"
-          test -n "${release_body}" || {
-            echo "Release body is empty; refusing to publish an updater manifest without notes."
-            exit 1
-          }
-
-          latest_asset_id="$(
-            gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?per_page=100" \
-              --jq '.[] | select(.name == "latest.json") | .id' \
-              | head -n 1
-          )"
-          test -n "${latest_asset_id}" || {
-            echo "latest.json is missing from the draft release."
-            exit 1
-          }
-
-          gh api \
-            -H "Accept: application/octet-stream" \
-            "repos/${GITHUB_REPOSITORY}/releases/assets/${latest_asset_id}" \
-            > "${work_dir}/latest.json"
-          jq --arg notes "${release_body}" \
-            '.notes = $notes' \
-            "${work_dir}/latest.json" \
-            > "${work_dir}/latest.patched.json"
-          mv "${work_dir}/latest.patched.json" "${work_dir}/latest.json"
-          test -n "$(jq -r '.notes // ""' "${work_dir}/latest.json")"
+          node scripts/build-updater-manifest.mjs \
+            --repository "${GITHUB_REPOSITORY}" \
+            --release-id "${RELEASE_ID}" \
+            --tag "${GITHUB_REF_NAME}" \
+            --output "${work_dir}/latest.json"
+          test "$(jq '.platforms | length' "${work_dir}/latest.json")" -eq 19
 
           gh release upload "${GITHUB_REF_NAME}" "${work_dir}/latest.json" \
             --repo "${GITHUB_REPOSITORY}" \
