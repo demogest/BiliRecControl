@@ -29,9 +29,46 @@ jobs:
             exit 1
           }
 
+  create-release:
+    name: Create draft release
+    needs: verify-version
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.release.outputs.release_id }}
+    steps:
+      - name: Create or reuse one draft
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_id="$(
+            gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"${GITHUB_REF_NAME}\" and .draft == true) | .id" \
+              | head -n 1
+          )"
+
+          if [[ -z "${release_id}" ]]; then
+            release_id="$(
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
+                -f tag_name="${GITHUB_REF_NAME}" \
+                -f target_commitish="${GITHUB_SHA}" \
+                -f name="BiliRec Control ${GITHUB_REF_NAME}" \
+                -f body="BiliRec Control 的跨平台安装包、便携 ZIP 和签名应用内更新。" \
+                -F draft=true \
+                -F prerelease=false \
+                --jq '.id'
+            )"
+          fi
+
+          echo "release_id=${release_id}" >> "${GITHUB_OUTPUT}"
+
   build-release:
     name: ${{ matrix.name }}
-    needs: verify-version
+    needs:
+      - verify-version
+      - create-release
     strategy:
       fail-fast: false
       matrix:
@@ -132,6 +169,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ github.ref_name }}
           releaseName: BiliRec Control ${{ github.ref_name }}
           releaseBody: |
@@ -189,10 +227,17 @@ jobs:
 
   publish-release:
     name: Publish release
-    needs: build-release
+    needs:
+      - create-release
+      - build-release
     runs-on: ubuntu-latest
     steps:
       - name: Publish the completed draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false --latest
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        run: |
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
+            -F draft=false \
+            -f make_latest=true
