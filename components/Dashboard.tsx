@@ -394,6 +394,12 @@ export default function Dashboard() {
   const toastSequence = useRef(0);
   const connectionAttempted = useRef(false);
 
+  useEffect(() => {
+    const disableContextMenu = (event: MouseEvent) => event.preventDefault();
+    document.addEventListener('contextmenu', disableContextMenu);
+    return () => document.removeEventListener('contextmenu', disableContextMenu);
+  }, []);
+
   const pushToast = useCallback(
     (message: string, tone: ToastItem['tone'] = 'info') => {
       const id = ++toastSequence.current;
