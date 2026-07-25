@@ -390,7 +390,6 @@ select:focus-visible {
 
 main {
   width: 100%;
-  max-width: 1920px;
   margin: 0 auto;
   padding: 30px 28px 34px;
 }
@@ -2369,8 +2368,28 @@ main {
     grid-template-columns: minmax(0, 1fr) 370px;
   }
 
+  .workspace.workspace-focus {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workspace.workspace-focus:has(.diagnostics-panel) {
+    grid-template-columns: minmax(0, 1fr) 370px;
+  }
+
   .room-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 2200px) {
+  .room-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 3000px) {
+  .room-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 
