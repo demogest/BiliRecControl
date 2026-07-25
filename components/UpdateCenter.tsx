@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   CloudDownload,
   Download,
+  ExternalLink,
   RefreshCw,
   Rocket,
   ShieldCheck,
@@ -11,7 +12,10 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { DownloadEvent, Update } from '@tauri-apps/plugin-updater';
+import { openExternalUrl } from '@/lib/api';
 import type { ToastItem } from '@/lib/types';
 
 type UpdateStatus =
@@ -111,6 +115,26 @@ export default function UpdateCenter({ notify }: Props) {
   const closeUpdateModal = useCallback(() => {
     if (status !== 'downloading') setOpen(false);
   }, [status]);
+
+  const openReleaseLink = useCallback(
+    async (url: string) => {
+      if (!/^https?:\/\//i.test(url)) {
+        notify('更新说明中的链接无效', 'error');
+        return;
+      }
+
+      try {
+        if (runningInTauri()) {
+          await openExternalUrl(url);
+        } else {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }
+      } catch (error) {
+        notify(error instanceof Error ? error.message : '无法打开外部链接', 'error');
+      }
+    },
+    [notify]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -251,7 +275,33 @@ export default function UpdateCenter({ notify }: Props) {
                       <strong>版本说明</strong>
                       {releaseDate && <span>{new Date(releaseDate).toLocaleDateString('zh-CN')}</span>}
                     </header>
-                    <p>{releaseNotes}</p>
+                    <div className="update-release-content">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        skipHtml
+                        components={{
+                          a: ({ href, children }) => (
+                            <a
+                              href={href}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                if (href) void openReleaseLink(href);
+                              }}
+                            >
+                              {children}
+                              <ExternalLink size={10} aria-hidden="true" />
+                            </a>
+                          ),
+                          img: ({ alt }) => (
+                            <span className="update-markdown-image">
+                              {alt ? `图片：${alt}` : '图片已隐藏'}
+                            </span>
+                          )
+                        }}
+                      >
+                        {releaseNotes}
+                      </ReactMarkdown>
+                    </div>
                   </div>
 
                   {status === 'downloading' && (

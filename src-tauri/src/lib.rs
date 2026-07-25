@@ -504,6 +504,18 @@ fn open_live_room(app: tauri::AppHandle, room_id: u64) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    let parsed = Url::parse(url.trim()).map_err(|_| "外部链接格式无效".to_string())?;
+    if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
+        return Err("仅允许打开 HTTP 或 HTTPS 外部链接".into());
+    }
+
+    app.opener()
+        .open_url(parsed.as_str(), None::<&str>)
+        .map_err(|error| format!("无法打开外部链接：{error}"))
+}
+
+#[tauri::command]
 fn play_with_mpv(
     connection: ApiConnection,
     file_url: String,
@@ -563,6 +575,7 @@ pub fn run() {
             bilirec_history,
             mpv_status,
             open_live_room,
+            open_external_url,
             play_with_mpv
         ])
         .run(tauri::generate_context!())

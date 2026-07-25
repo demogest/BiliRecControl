@@ -1893,7 +1893,7 @@ main {
 
 .update-modal {
   display: flex;
-  width: min(560px, calc(100vw - 48px));
+  width: min(660px, calc(100vw - 48px));
   max-height: calc(100dvh - 48px);
   flex-direction: column;
 }
@@ -1998,25 +1998,201 @@ main {
   justify-content: space-between;
 }
 
-.update-release-notes strong {
+.update-release-notes > header > strong {
   color: var(--text-soft);
   font-size: 9px;
 }
 
-.update-release-notes span {
+.update-release-notes > header > span {
   color: #607086;
   font-family: 'Space Grotesk', monospace;
   font-size: 8px;
 }
 
-.update-release-notes p {
-  max-height: 92px;
-  margin: 9px 0 0;
+.update-release-content {
+  max-height: 230px;
+  margin-top: 10px;
+  padding-right: 6px;
   overflow: auto;
   color: #7f8da1;
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.update-release-content > :first-child {
+  margin-top: 0;
+}
+
+.update-release-content > :last-child {
+  margin-bottom: 0;
+}
+
+.update-release-content h1,
+.update-release-content h2,
+.update-release-content h3,
+.update-release-content h4 {
+  margin: 14px 0 7px;
+  color: #dce5f1;
+  font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.update-release-content h1 {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+}
+
+.update-release-content h2 {
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(157, 176, 202, 0.08);
+  font-size: 13px;
+}
+
+.update-release-content h3 {
+  color: #cbd6e5;
+  font-size: 11px;
+}
+
+.update-release-content h4 {
+  font-size: 10px;
+}
+
+.update-release-content p {
+  margin: 0 0 9px;
+}
+
+.update-release-content ul,
+.update-release-content ol {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.update-release-content li {
+  padding-left: 2px;
+}
+
+.update-release-content li + li {
+  margin-top: 4px;
+}
+
+.update-release-content li::marker {
+  color: var(--cyan);
+}
+
+.update-release-content strong {
+  color: #bac7d8;
+  font-weight: 650;
+}
+
+.update-release-content a {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #64e8da;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.update-release-content a:hover {
+  color: #9df5eb;
+  text-decoration: underline;
+}
+
+.update-release-content a > svg {
+  flex: 0 0 auto;
+}
+
+.update-release-content code {
+  padding: 1px 4px;
+  border: 1px solid rgba(155, 134, 255, 0.12);
+  border-radius: 4px;
+  color: #bdb4ff;
+  background: rgba(155, 134, 255, 0.06);
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.92em;
+}
+
+.update-release-content pre {
+  margin: 9px 0;
+  padding: 10px 11px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(3, 7, 12, 0.64);
+}
+
+.update-release-content pre code {
+  padding: 0;
+  border: 0;
+  color: #aab8ca;
+  background: transparent;
+}
+
+.update-release-content blockquote {
+  margin: 9px 0;
+  padding: 6px 10px;
+  border-left: 2px solid rgba(62, 231, 211, 0.45);
+  color: #8fa0b5;
+  background: rgba(62, 231, 211, 0.035);
+}
+
+.update-release-content blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.update-release-content hr {
+  height: 1px;
+  margin: 13px 0;
+  border: 0;
+  background: var(--line);
+}
+
+.update-release-content table {
+  width: 100%;
+  margin: 9px 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-spacing: 0;
+  border-radius: 7px;
   font-size: 9px;
-  line-height: 1.75;
-  white-space: pre-wrap;
+}
+
+.update-release-content th,
+.update-release-content td {
+  padding: 6px 8px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.update-release-content th {
+  color: #cbd6e5;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.update-release-content tr:last-child td {
+  border-bottom: 0;
+}
+
+.update-release-content th:last-child,
+.update-release-content td:last-child {
+  border-right: 0;
+}
+
+.update-release-content del {
+  color: #647286;
+}
+
+.update-markdown-image {
+  display: inline-flex;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: #66758a;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 8px;
 }
 
 .update-progress > div {

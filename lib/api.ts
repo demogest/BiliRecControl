@@ -65,6 +65,10 @@ export function openLiveRoom(roomId: number) {
   return invoke<void>('open_live_room', { roomId });
 }
 
+export function openExternalUrl(url: string) {
+  return invoke<void>('open_external_url', { url });
+}
+
 export function playRecordingWithMpv(
   connection: ConnectionSettings,
   fileUrl: string,
