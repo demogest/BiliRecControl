@@ -50,15 +50,15 @@ Rust 后端命令
 
 ## 下载与平台支持
 
-完整的跨平台 CI 可在 GitHub Actions 中手动运行，避免普通推送和 Pull Request 重复构建所有架构；带 `v` 前缀的版本标签仍会自动发布带 Tauri 更新签名的正式 Release。
+Pull Request 会自动执行格式化、Changelog、前端构建、测试和 Rust Clippy 检查。每次推送 `main` 在完整检查通过后，都会构建并上传 Windows x64、Linux x64 和 macOS Universal 三组临时 CI 包；也可在 GitHub Actions 中手动运行。带 `v` 前缀的版本标签仍会使用完整平台矩阵，自动发布带 Tauri 更新签名的正式 Release。
 
-| 系统 | 架构 | 安装包 | 便携包 |
-| --- | --- | --- | --- |
-| Windows | x64 | NSIS、MSI | 独立 EXE ZIP |
-| Windows | ARM64 | NSIS | 独立 EXE ZIP |
-| Linux | x64、ARM64 | AppImage、DEB、RPM | AppImage ZIP |
-| macOS | Intel x64、Apple Silicon ARM64 | APP、DMG | APP ZIP |
-| macOS | Universal | APP、DMG | APP ZIP |
+| 系统    | 架构                           | 安装包             | 便携包       |
+| ------- | ------------------------------ | ------------------ | ------------ |
+| Windows | x64                            | NSIS、MSI          | 独立 EXE ZIP |
+| Windows | ARM64                          | NSIS               | 独立 EXE ZIP |
+| Linux   | x64、ARM64                     | AppImage、DEB、RPM | AppImage ZIP |
+| macOS   | Intel x64、Apple Silicon ARM64 | APP、DMG           | APP ZIP      |
+| macOS   | Universal                      | APP、DMG           | APP ZIP      |
 
 CI 的临时产物保留 7 天；正式版本可从 [GitHub Releases](https://github.com/demogest/BiliRecControl/releases) 长期下载。便携包不等于完全不写本机数据，限制与运行要求见 [PORTABLE.md](PORTABLE.md)。
 
@@ -74,6 +74,15 @@ npm run tauri:dev
 ```
 
 首次打开会显示连接设置。填写录播姬服务根地址、Basic Auth 用户名和密码后，点击“保存并连接”。
+
+提交前可使用统一命令格式化并运行完整检查：
+
+```powershell
+npm run format
+npm run check
+```
+
+`npm run check` 会验证 Prettier、Rustfmt、提交标题、Next.js 构建、Node/Rust 测试和 Clippy。
 
 ## 贡献与提交规范
 

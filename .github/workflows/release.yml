@@ -32,9 +32,53 @@ jobs:
       - name: Test updater manifest safeguards
         run: node --test scripts/lib/updater-manifest.test.mjs
 
+  quality:
+    name: Format, lint, test, and build
+    needs: verify-version
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Restore Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run complete checks
+        run: npm run check
+
   create-release:
     name: Create draft release
-    needs: verify-version
+    needs:
+      - verify-version
+      - quality
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.release.outputs.release_id }}
@@ -104,6 +148,7 @@ jobs:
     name: ${{ matrix.name }}
     needs:
       - verify-version
+      - quality
       - create-release
     strategy:
       fail-fast: false
@@ -198,12 +243,6 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
-
-      - name: Run automated tests
-        if: matrix.archive == 'windows-x64'
-        run: |
-          npm run test:updater
-          npm run test:rust
 
       - name: Build and upload signed release packages
         uses: tauri-apps/tauri-action@v1
