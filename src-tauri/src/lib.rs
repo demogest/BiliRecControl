@@ -72,6 +72,7 @@ struct RoomHistory {
     total_bytes: u64,
     first_recorded_at: Option<String>,
     last_recorded_at: Option<String>,
+    last_activity_at: Option<String>,
     files: Vec<HistoryFile>,
 }
 
@@ -428,6 +429,7 @@ async fn bilirec_history(connection: ApiConnection) -> Result<HistoryOverview, S
             .iter()
             .map(|file| file.last_modified.clone())
             .max();
+        let last_activity_at = files.iter().map(|file| file.last_modified.clone()).max();
 
         rooms.push(RoomHistory {
             room_id,
@@ -440,6 +442,7 @@ async fn bilirec_history(connection: ApiConnection) -> Result<HistoryOverview, S
             total_bytes,
             first_recorded_at,
             last_recorded_at,
+            last_activity_at,
             files,
         });
     }

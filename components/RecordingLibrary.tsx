@@ -2,6 +2,7 @@
 
 import {
   Archive,
+  ArrowUpDown,
   Check,
   Clapperboard,
   Copy,
@@ -29,11 +30,13 @@ import type {
   HistoryFile,
   HistoryOverview,
   MpvStatus,
+  RoomHistory,
   ToastItem
 } from '@/lib/types';
 
 type FileFilter = 'all' | 'video' | 'danmaku' | 'other';
 type FileSort = 'newest' | 'oldest' | 'largest' | 'smallest';
+type RoomSort = 'recent' | 'largest' | 'videos' | 'name';
 
 type Props = {
   open: boolean;
@@ -59,6 +62,23 @@ function formatDate(value: string | null, withTime = true) {
         }
       : {})
   });
+}
+
+function formatCompactDate(value: string | null) {
+  if (!value) return '暂无活动';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+}
+
+function roomActivityTime(room: RoomHistory) {
+  return room.lastActivityAt || room.lastRecordedAt || '';
 }
 
 function fileKind(file: HistoryFile) {
@@ -88,6 +108,7 @@ export default function RecordingLibrary({
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FileFilter>('all');
   const [sort, setSort] = useState<FileSort>('newest');
+  const [roomSort, setRoomSort] = useState<RoomSort>('recent');
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -118,6 +139,8 @@ export default function RecordingLibrary({
     if (!open) return;
     setQuery('');
     setFilter('all');
+    setSort('newest');
+    setRoomSort('recent');
     void load();
   }, [load, open]);
 
@@ -143,6 +166,34 @@ export default function RecordingLibrary({
         return right.lastModified.localeCompare(left.lastModified);
       });
   }, [filter, overview, query, selectedRoomId, sort]);
+
+  const sortedRooms = useMemo(() => {
+    if (!overview) return [];
+    return [...overview.rooms].sort((left, right) => {
+      if (roomSort === 'largest') {
+        return (
+          right.totalBytes - left.totalBytes ||
+          roomActivityTime(right).localeCompare(roomActivityTime(left))
+        );
+      }
+      if (roomSort === 'videos') {
+        return (
+          right.videoCount - left.videoCount ||
+          roomActivityTime(right).localeCompare(roomActivityTime(left))
+        );
+      }
+      if (roomSort === 'name') {
+        return left.roomName.localeCompare(right.roomName, 'zh-CN');
+      }
+      return roomActivityTime(right).localeCompare(roomActivityTime(left));
+    });
+  }, [overview, roomSort]);
+
+  const visibleBytes = useMemo(
+    () => files.reduce((total, file) => total + file.size, 0),
+    [files]
+  );
+  const libraryTotalBytes = overview?.totalBytes || 0;
 
   const selectedRoom =
     selectedRoomId === 'all'
@@ -241,8 +292,8 @@ export default function RecordingLibrary({
           <div>
             <HardDrive size={18} />
             <span>
-              <small>视频占用</small>
-              <strong>{overview ? formatBytes(overview.totalVideoBytes) : '—'}</strong>
+              <small>资料库总大小</small>
+              <strong>{overview ? formatBytes(overview.totalBytes) : '—'}</strong>
             </span>
           </div>
           <div>
@@ -259,8 +310,23 @@ export default function RecordingLibrary({
         <div className="library-workspace">
           <aside className="history-sidebar">
             <div className="history-sidebar-title">
-              <span>房间历史</span>
-              <b>{overview?.rooms.length || 0}</b>
+              <div>
+                <span>房间历史</span>
+                <b>{overview?.rooms.length || 0}</b>
+              </div>
+              <label className="history-sort" title="房间排序">
+                <ArrowUpDown size={12} />
+                <select
+                  value={roomSort}
+                  onChange={(event) => setRoomSort(event.target.value as RoomSort)}
+                  aria-label="房间排序"
+                >
+                  <option value="recent">最近活动</option>
+                  <option value="largest">占用最大</option>
+                  <option value="videos">视频最多</option>
+                  <option value="name">按名称</option>
+                </select>
+              </label>
             </div>
             <button
               className={`history-room all-history ${selectedRoomId === 'all' ? 'active' : ''}`}
@@ -274,11 +340,11 @@ export default function RecordingLibrary({
                 <strong>全部录制</strong>
                 <small>{overview?.videoCount || 0} 个视频文件</small>
               </span>
-              <b>{overview ? formatBytes(overview.totalVideoBytes) : '—'}</b>
+              <b>{overview ? formatBytes(overview.totalBytes) : '—'}</b>
             </button>
 
             <div className="history-room-list">
-              {overview?.rooms.map((room) => (
+              {sortedRooms.map((room) => (
                 <button
                   key={room.roomId}
                   className={`history-room ${selectedRoomId === room.roomId ? 'active' : ''}`}
@@ -293,13 +359,19 @@ export default function RecordingLibrary({
                     <small>
                       ROOM {room.roomId} · {room.videoCount} 段
                     </small>
+                    <span
+                      className="history-last-active"
+                      title={`最近活动：${formatDate(room.lastActivityAt || room.lastRecordedAt)}`}
+                    >
+                      最近 {formatCompactDate(room.lastActivityAt || room.lastRecordedAt)}
+                    </span>
                     <i>
                       <span
                         style={{
                           width: `${
-                            overview.totalVideoBytes
+                            libraryTotalBytes
                               ? Math.max(
-                                  (room.totalVideoBytes / overview.totalVideoBytes) * 100,
+                                  (room.totalBytes / libraryTotalBytes) * 100,
                                   3
                                 )
                               : 0
@@ -308,7 +380,7 @@ export default function RecordingLibrary({
                       />
                     </i>
                   </span>
-                  <b>{formatBytes(room.totalVideoBytes)}</b>
+                  <b>{formatBytes(room.totalBytes)}</b>
                 </button>
               ))}
             </div>
@@ -322,7 +394,7 @@ export default function RecordingLibrary({
                 <p>
                   {selectedRoom
                     ? `${selectedRoom.videoCount} 个视频 · ${selectedRoom.danmakuCount} 个弹幕 · ${formatBytes(selectedRoom.totalBytes)}`
-                    : `${files.length} 个文件，来自 ${overview?.roomCount || 0} 个房间`}
+                    : `${files.length} 个文件 · ${formatBytes(visibleBytes)} · 来自 ${overview?.roomCount || 0} 个房间`}
                 </p>
               </div>
               <div className="file-toolbar">
@@ -339,7 +411,11 @@ export default function RecordingLibrary({
                     </button>
                   )}
                 </label>
-                <select value={sort} onChange={(event) => setSort(event.target.value as FileSort)}>
+                <select
+                  value={sort}
+                  onChange={(event) => setSort(event.target.value as FileSort)}
+                  aria-label="文件排序"
+                >
                   <option value="newest">最新优先</option>
                   <option value="oldest">最早优先</option>
                   <option value="largest">容量从大到小</option>

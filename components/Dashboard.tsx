@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Archive,
   ArrowDownToLine,
+  CalendarClock,
   ChevronRight,
   CircleStop,
   Clock3,
@@ -56,8 +57,7 @@ import {
   formatLogTime,
   formatRate,
   logLevel,
-  parseLog,
-  shortHost
+  parseLog
 } from '@/lib/format';
 import type {
   ConnectionSettings,
@@ -87,6 +87,24 @@ type ConfirmState = {
 
 function isConfigured(connection: ConnectionSettings) {
   return Boolean(connection.apiUrl.trim() && connection.username.trim() && connection.password);
+}
+
+function parseSessionStart(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime()) || date.getTime() <= 0) return null;
+  return date;
+}
+
+function formatSessionStart(date: Date | null) {
+  if (!date) return '—';
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
 }
 
 function MetricCard({
@@ -171,6 +189,7 @@ function RoomCard({
   const ratio = finiteNumber(room.recordingStats?.durationRatio);
   const ratioPercent = room.recording ? Math.min(Math.max(ratio * 100, 0), 100) : 0;
   const initials = (room.name || String(room.roomId)).slice(0, 2).toUpperCase();
+  const sessionStartedAt = room.recording ? parseSessionStart(room.ioStats?.startTime) : null;
 
   return (
     <article className={`room-card room-${status}`}>
@@ -228,6 +247,15 @@ function RoomCard({
 
       <div className="room-stats">
         <div>
+          <CalendarClock size={15} />
+          <span>
+            <small>会话开始</small>
+            <strong title={sessionStartedAt?.toLocaleString('zh-CN')}>
+              {formatSessionStart(sessionStartedAt)}
+            </strong>
+          </span>
+        </div>
+        <div>
           <Clock3 size={15} />
           <span>
             <small>录制时长</small>
@@ -244,16 +272,11 @@ function RoomCard({
         <div>
           <HardDrive size={15} />
           <span>
-            <small>当前文件</small>
-            <strong>{formatBytes(room.recordingStats?.currentFileSize || 0)}</strong>
-          </span>
-        </div>
-        <div>
-          <Server size={15} />
-          <span>
-            <small>直播节点</small>
-            <strong title={room.ioStats?.streamHost || undefined}>
-              {shortHost(room.ioStats?.streamHost)}
+            <small>会话大小</small>
+            <strong>
+              {room.recording
+                ? formatBytes(finiteNumber(room.recordingStats?.totalOutputBytes))
+                : '—'}
             </strong>
           </span>
         </div>
@@ -509,7 +532,7 @@ export default function Dashboard() {
     (sum, room) => sum + finiteNumber(room.ioStats?.networkMbps),
     0
   );
-  const totalBytes = rooms.reduce(
+  const totalRecordingBytes = recordingRooms.reduce(
     (sum, room) => sum + finiteNumber(room.recordingStats?.totalOutputBytes),
     0
   );
@@ -519,6 +542,13 @@ export default function Dashboard() {
         0
       ) / recordingRooms.length
     : 0;
+  const sessionStart =
+    recordingRooms
+      .map((room) => parseSessionStart(room.ioStats?.startTime))
+      .filter((value): value is Date => value !== null)
+      .sort((left, right) => left.getTime() - right.getTime())[0] || null;
+  const sessionElapsed =
+    sessionStart && clock ? Math.max(clock.getTime() - sessionStart.getTime(), 0) : 0;
 
   const visibleRooms = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -928,21 +958,35 @@ export default function Dashboard() {
           />
           <MetricCard
             tone="violet"
+            icon={<CalendarClock size={21} />}
+            label="本次会话开始"
+            value={connected ? formatSessionStart(sessionStart) : '—'}
+            detail={
+              sessionStart
+                ? `${recordingRooms.length} 个录制会话 · 已持续 ${formatDuration(sessionElapsed)}`
+                : recordingRooms.length
+                  ? '正在同步会话时间'
+                  : '开始录制后显示'
+            }
+            index="04"
+          />
+          <MetricCard
+            tone="violet"
             icon={<Activity size={21} />}
             label="网络吞吐"
             value={connected ? formatRate(totalNetwork) : '—'}
             detail="所有录制任务"
-            index="04"
+            index="05"
           >
             <Sparkline values={networkHistory} />
           </MetricCard>
           <MetricCard
             tone="amber"
             icon={<Database size={21} />}
-            label="本次写入"
-            value={connected ? formatBytes(totalBytes) : '—'}
-            detail="本次运行累计"
-            index="05"
+            label="录制总大小"
+            value={connected ? formatBytes(totalRecordingBytes) : '—'}
+            detail={`当前会话累计 · ${recordingRooms.length} 个录制中`}
+            index="06"
           />
         </section>
 

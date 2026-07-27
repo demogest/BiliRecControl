@@ -531,7 +531,7 @@ main {
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -2740,7 +2740,7 @@ main {
   }
 
   .metrics-grid {
-    grid-template-columns: repeat(5, minmax(150px, 1fr));
+    grid-template-columns: repeat(6, minmax(150px, 1fr));
   }
 
   .workspace {
@@ -2765,8 +2765,7 @@ main {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .metric-card:nth-child(4),
-  .metric-card:nth-child(5) {
+  .metric-card:nth-child(n + 4) {
     min-height: 130px;
   }
 
@@ -3046,6 +3045,12 @@ main {
   letter-spacing: 0.08em;
 }
 
+.history-sidebar-title > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .history-sidebar-title b {
   min-width: 19px;
   padding: 2px 5px;
@@ -3055,6 +3060,28 @@ main {
   font-family: 'Cascadia Code', 'Consolas', monospace;
   font-size: 7px;
   text-align: center;
+}
+
+.history-sort {
+  display: flex;
+  height: 25px;
+  padding-left: 6px;
+  border: 1px solid rgba(157, 176, 202, 0.09);
+  border-radius: 7px;
+  color: #66758a;
+  background: rgba(255, 255, 255, 0.025);
+  align-items: center;
+}
+
+.history-sort select {
+  height: 100%;
+  padding: 0 18px 0 5px;
+  border: 0;
+  outline: 0;
+  color: #8996a8;
+  background: #101720;
+  cursor: pointer;
+  font-size: 7px;
 }
 
 .history-room-list {
@@ -3136,6 +3163,16 @@ main {
   color: #5c6a7e;
   font-family: 'Cascadia Code', 'Consolas', monospace;
   font-size: 6px;
+}
+
+.history-last-active {
+  margin-top: 3px;
+  overflow: hidden;
+  color: #69788d;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-size: 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .history-room-copy i {

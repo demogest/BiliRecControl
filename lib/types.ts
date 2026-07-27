@@ -112,6 +112,7 @@ export type RoomHistory = {
   totalBytes: number;
   firstRecordedAt: string | null;
   lastRecordedAt: string | null;
+  lastActivityAt: string | null;
   files: HistoryFile[];
 };
 
