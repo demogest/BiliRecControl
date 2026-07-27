@@ -151,44 +151,19 @@ export function assertPublicReleaseAssetUrl(url, { repository, tag, assetName })
   return parsed.href;
 }
 
-function assertDraftReleaseAssetUrl(url, { repository, assetName }) {
-  if (typeof url !== 'string' || !url.trim()) {
-    throw new Error(`Release asset has no draft download URL: ${assetName}`);
-  }
-
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch {
-    throw new Error(`Release asset has an invalid draft download URL: ${assetName}`);
-  }
-
-  if (
-    parsed.protocol !== 'https:' ||
-    parsed.hostname !== 'github.com' ||
-    parsed.username ||
-    parsed.password ||
-    parsed.search ||
-    parsed.hash
-  ) {
-    throw new Error(`Release asset draft URL is not a GitHub HTTPS URL: ${url}`);
-  }
-
-  const prefix = `/${repository}/releases/download/untagged-`;
-  const suffix = `/${encodeURIComponent(assetName)}`;
-  const draftIdentifier = parsed.pathname.slice(prefix.length, -suffix.length);
-  if (
-    !parsed.pathname.startsWith(prefix) ||
-    !parsed.pathname.endsWith(suffix) ||
-    !/^[a-z0-9]+$/i.test(draftIdentifier)
-  ) {
-    throw new Error(`Release asset draft URL must target the current repository and asset: ${url}`);
-  }
-}
-
 export function assertUploadedReleaseAsset(asset, context) {
   if (!asset || typeof asset !== 'object') {
     throw new Error(`Release asset is missing: ${context.assetName}`);
+  }
+  if (!Number.isInteger(asset.id) || asset.id <= 0) {
+    throw new Error(`Release asset has no valid GitHub asset id: ${context.assetName}`);
+  }
+  if (asset.name !== context.assetName) {
+    throw new Error(
+      `Release asset name does not match: expected ${context.assetName}, got ${
+        asset.name || '(missing)'
+      }`
+    );
   }
   if (asset.state !== 'uploaded') {
     throw new Error(
@@ -200,11 +175,7 @@ export function assertUploadedReleaseAsset(asset, context) {
   }
 
   if (context.releaseIsDraft === true) {
-    const canonicalUrl = publicReleaseAssetUrl(context.repository, context.tag, context.assetName);
-    if (asset.browser_download_url === canonicalUrl) return canonicalUrl;
-
-    assertDraftReleaseAssetUrl(asset.browser_download_url, context);
-    return canonicalUrl;
+    return publicReleaseAssetUrl(context.repository, context.tag, context.assetName);
   }
 
   return assertPublicReleaseAssetUrl(asset.browser_download_url, context);

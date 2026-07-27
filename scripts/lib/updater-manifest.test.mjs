@@ -161,6 +161,8 @@ test('requires an uploaded non-empty asset with a canonical browser URL', () => 
   const assetName = updaterPackagesForVersion(version)[0].name;
   const context = { repository, tag, assetName };
   const asset = {
+    id: 123,
+    name: assetName,
     state: 'uploaded',
     size: 1024,
     browser_download_url: publicReleaseAssetUrl(repository, tag, assetName)
@@ -169,6 +171,11 @@ test('requires an uploaded non-empty asset with a canonical browser URL', () => 
   assert.equal(assertUploadedReleaseAsset(asset, context), asset.browser_download_url);
   assert.throws(() => assertUploadedReleaseAsset({ ...asset, state: 'new' }, context), /not ready/);
   assert.throws(() => assertUploadedReleaseAsset({ ...asset, size: 0 }, context), /empty/);
+  assert.throws(() => assertUploadedReleaseAsset({ ...asset, id: 0 }, context), /asset id/);
+  assert.throws(
+    () => assertUploadedReleaseAsset({ ...asset, name: 'other-package.zip' }, context),
+    /name does not match/
+  );
   assert.throws(
     () =>
       assertUploadedReleaseAsset(
@@ -188,6 +195,8 @@ test('converts GitHub draft asset URLs to their future public tagged URLs', () =
   const canonicalUrl = publicReleaseAssetUrl(repository, tag, assetName);
   const draftUrl = `https://github.com/${repository}/releases/download/untagged-b8d44c28c2bfc48e013f/${encodeURIComponent(assetName)}`;
   const asset = {
+    id: 456,
+    name: assetName,
     state: 'uploaded',
     size: 1024,
     browser_download_url: draftUrl
@@ -203,16 +212,18 @@ test('converts GitHub draft asset URLs to their future public tagged URLs', () =
     canonicalUrl
   );
   assert.throws(() => assertUploadedReleaseAsset(asset, { repository, tag, assetName }), /tag/);
+});
+
+test('never accepts a draft URL inside a published updater manifest', () => {
+  const manifest = validManifest();
+  const [platform] = Object.keys(manifest.platforms);
+  const assetName = updaterPackagesForVersion(version)[0].name;
+  manifest.platforms[platform].url =
+    `https://github.com/${repository}/releases/download/untagged-temporary/${encodeURIComponent(assetName)}`;
+
   assert.throws(
-    () =>
-      assertUploadedReleaseAsset(
-        {
-          ...asset,
-          browser_download_url: draftUrl.replace(repository, 'demogest/AnotherRepository')
-        },
-        { repository, tag, assetName, releaseIsDraft: true }
-      ),
-    /current repository and asset/
+    () => validateUpdaterManifest(manifest, { repository, tag }),
+    /current repository and tag/
   );
 });
 
