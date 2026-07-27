@@ -29,6 +29,9 @@ jobs:
             exit 1
           }
 
+      - name: Test updater manifest safeguards
+        run: node --test scripts/lib/updater-manifest.test.mjs
+
   create-release:
     name: Create draft release
     needs: verify-version
@@ -261,6 +264,7 @@ jobs:
       - create-release
       - build-release
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -280,13 +284,16 @@ jobs:
             --release-id "${RELEASE_ID}" \
             --tag "${GITHUB_REF_NAME}" \
             --output "${work_dir}/latest.json"
-          test "$(jq '.platforms | length' "${work_dir}/latest.json")" -eq 19
+          node scripts/validate-updater-manifest.mjs \
+            --input "${work_dir}/latest.json" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --tag "${GITHUB_REF_NAME}"
 
           gh release upload "${GITHUB_REF_NAME}" "${work_dir}/latest.json" \
             --repo "${GITHUB_REPOSITORY}" \
             --clobber
 
-      - name: Publish the completed draft
+      - name: Publish the completed release for verification
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
@@ -294,4 +301,32 @@ jobs:
           gh api --method PATCH \
             "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
             -F draft=false \
+            -f make_latest=false
+
+      - name: Verify anonymous updater downloads for tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-public-updater.mjs \
+            --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/latest.json" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --tag "${GITHUB_REF_NAME}" \
+            --probe
+
+      - name: Promote the verified release to latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        run: |
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
             -f make_latest=true
+
+      - name: Verify latest updater metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-public-updater.mjs \
+            --url "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/latest.json" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --tag "${GITHUB_REF_NAME}"

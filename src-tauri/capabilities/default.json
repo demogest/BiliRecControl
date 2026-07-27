@@ -8,7 +8,9 @@
   "permissions": [
     "core:default",
     "core:window:allow-set-fullscreen",
-    "process:default",
-    "updater:default"
+    "process:allow-restart",
+    "updater:allow-check",
+    "updater:allow-download",
+    "updater:allow-install"
   ]
 }

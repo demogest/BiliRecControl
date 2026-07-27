@@ -5,6 +5,7 @@ import {
   CloudDownload,
   Download,
   ExternalLink,
+  LoaderCircle,
   RefreshCw,
   Rocket,
   ShieldCheck,
@@ -24,15 +25,116 @@ type UpdateStatus =
   | 'current'
   | 'available'
   | 'downloading'
-  | 'ready'
+  | 'downloaded'
+  | 'installing'
   | 'error';
+
+type UpdateFailureStage = 'check' | 'download' | 'verify' | 'install' | 'restart';
+
+type UpdateFailure = {
+  stage: UpdateFailureStage;
+  message: string;
+  details: string;
+};
 
 type Props = {
   notify: (message: string, tone?: ToastItem['tone']) => void;
 };
 
+const RELEASES_URL = 'https://github.com/demogest/BiliRecControl/releases/latest';
+const CHECK_TIMEOUT_MS = 15_000;
+const DOWNLOAD_TIMEOUT_MS = 30 * 60_000;
+const MAX_REQUEST_ATTEMPTS = 2;
+
 function runningInTauri() {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
+function updaterErrorDetails(error: unknown) {
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  const details = String(error).trim();
+  return details && details !== '[object Object]' ? details : '未知错误';
+}
+
+function describeUpdaterFailure(
+  error: unknown,
+  fallbackStage: UpdateFailureStage
+): UpdateFailure {
+  const details = updaterErrorDetails(error);
+  const normalized = details.toLowerCase();
+  const stage =
+    fallbackStage === 'download' &&
+    /(signature|public key|校验|签名|验证)/i.test(details)
+      ? 'verify'
+      : fallbackStage;
+
+  if (/\b(403|429)\b|forbidden|rate limit/i.test(details)) {
+    return {
+      stage,
+      message: '更新服务器拒绝了下载请求。请重试，或前往发布页手动下载安装。',
+      details
+    };
+  }
+
+  if (/\b404\b|not found/i.test(details)) {
+    return {
+      stage,
+      message: '没有找到适用于当前系统的更新包，请前往发布页查看可用安装包。',
+      details
+    };
+  }
+
+  if (/(timed? out|timeout|deadline)/i.test(normalized)) {
+    return {
+      stage,
+      message: '连接更新服务器超时，请检查网络后重试。',
+      details
+    };
+  }
+
+  if (/(signature|public key|校验|签名|验证)/i.test(details)) {
+    return {
+      stage: fallbackStage === 'download' ? 'verify' : fallbackStage,
+      message: '更新包签名校验未通过。为保证安全，应用不会安装此更新。',
+      details
+    };
+  }
+
+  if (/(network|connection|dns|resolve|offline|socket|fetch)/i.test(normalized)) {
+    return {
+      stage,
+      message: '无法连接更新服务器，请检查网络后重试。',
+      details
+    };
+  }
+
+  const fallbackMessages: Record<UpdateFailureStage, string> = {
+    check: '暂时无法检查新版本，请稍后重试。',
+    download: '更新包下载失败，请稍后重试。',
+    verify: '更新包校验失败，为保证安全已停止安装。',
+    install: '更新包已经下载，但安装未能完成。',
+    restart: '更新已经安装，请手动重启应用以完成更新。'
+  };
+
+  return { stage, message: fallbackMessages[stage], details };
+}
+
+function canRetryUpdaterRequest(error: unknown) {
+  const details = updaterErrorDetails(error).toLowerCase();
+  if (
+    (/\b4\d\d\b/.test(details) && !/\b(408|425)\b/.test(details)) ||
+    /forbidden|rate limit|signature|public key|invalid updater|permission denied|cancelled/i.test(
+      details
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function wait(milliseconds: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
 export default function UpdateCenter({ notify }: Props) {
@@ -43,10 +145,15 @@ export default function UpdateCenter({ notify }: Props) {
   const [availableVersion, setAvailableVersion] = useState('');
   const [releaseDate, setReleaseDate] = useState('');
   const [releaseNotes, setReleaseNotes] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [failure, setFailure] = useState<UpdateFailure | null>(null);
   const [downloadedBytes, setDownloadedBytes] = useState(0);
   const [totalBytes, setTotalBytes] = useState(0);
+  const [downloadAttempt, setDownloadAttempt] = useState(1);
   const updateRef = useRef<Update | null>(null);
+  const downloadedRef = useRef(false);
+  const disposedRef = useRef(false);
+  const manualCheckRequestedRef = useRef(false);
+  const updateActionRef = useRef<Promise<void> | null>(null);
   const automaticCheckTimer = useRef<number | null>(null);
   const checkPromise = useRef<Promise<void> | null>(null);
 
@@ -56,14 +163,22 @@ export default function UpdateCenter({ notify }: Props) {
 
   useEffect(() => {
     if (!runningInTauri()) return;
+    let cancelled = false;
     void import('@tauri-apps/api/app')
       .then(({ getVersion }) => getVersion())
-      .then(setCurrentVersion)
+      .then((version) => {
+        if (!cancelled) setCurrentVersion(version);
+      })
       .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const checkForUpdates = useCallback(
     async (silent = false) => {
+      if (!silent) manualCheckRequestedRef.current = true;
+
       if (!silent && automaticCheckTimer.current !== null) {
         window.clearTimeout(automaticCheckTimer.current);
         automaticCheckTimer.current = null;
@@ -80,39 +195,78 @@ export default function UpdateCenter({ notify }: Props) {
           if (!silent) {
             setOpen(true);
             setStatus('error');
-            setErrorMessage('请在已安装的桌面应用中使用更新功能。');
+            setFailure({
+              stage: 'check',
+              message: '请在已安装的桌面应用中使用更新功能。',
+              details: 'Updater is unavailable outside the Tauri desktop runtime.'
+            });
           }
           return;
         }
 
         setStatus('checking');
-        setErrorMessage('');
+        setFailure(null);
         if (!silent) setOpen(true);
 
         try {
           const { check } = await import('@tauri-apps/plugin-updater');
-          const update = await check({ timeout: 15_000 });
+          let update: Update | null = null;
+          for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt += 1) {
+            try {
+              update = await check({ timeout: CHECK_TIMEOUT_MS });
+              break;
+            } catch (error) {
+              const shouldRetry =
+                attempt < MAX_REQUEST_ATTEMPTS && canRetryUpdaterRequest(error);
+              if (!shouldRetry) throw error;
+              await wait(900 * attempt);
+              if (disposedRef.current) return;
+            }
+          }
+          if (disposedRef.current) {
+            if (update) await update.close().catch(() => undefined);
+            return;
+          }
           if (!update) {
+            if (updateRef.current) {
+              await updateRef.current.close().catch(() => undefined);
+              updateRef.current = null;
+            }
+            if (disposedRef.current) return;
+            downloadedRef.current = false;
             setStatus('current');
-            if (!silent) notify('当前已经是最新版本', 'success');
+            if (manualCheckRequestedRef.current) {
+              notify('当前已经是最新版本', 'success');
+            }
             return;
           }
 
           if (updateRef.current && updateRef.current !== update) {
             await updateRef.current.close().catch(() => undefined);
           }
+          if (disposedRef.current) {
+            await update.close().catch(() => undefined);
+            return;
+          }
           updateRef.current = update;
+          downloadedRef.current = false;
           setCurrentVersion(update.currentVersion);
           setAvailableVersion(update.version);
           setReleaseDate(update.date || '');
           setReleaseNotes(update.body || '此版本暂无更新说明。');
+          setDownloadedBytes(0);
+          setTotalBytes(0);
           setStatus('available');
-          setOpen(true);
           notify(`发现新版本 ${update.version}`, 'info');
         } catch (error) {
+          if (disposedRef.current) return;
+          if (!manualCheckRequestedRef.current) {
+            setStatus('idle');
+            return;
+          }
+          setFailure(describeUpdaterFailure(error, 'check'));
           setStatus('error');
-          setErrorMessage(error instanceof Error ? error.message : String(error));
-          if (!silent) notify('检查更新失败', 'error');
+          notify('检查更新失败', 'error');
         }
       })();
 
@@ -122,6 +276,7 @@ export default function UpdateCenter({ notify }: Props) {
       } finally {
         if (checkPromise.current === operation) {
           checkPromise.current = null;
+          manualCheckRequestedRef.current = false;
         }
       }
     },
@@ -144,9 +299,34 @@ export default function UpdateCenter({ notify }: Props) {
     };
   }, [checkForUpdates]);
 
+  useEffect(
+    () => {
+      disposedRef.current = false;
+      return () => {
+        disposedRef.current = true;
+        const update = updateRef.current;
+        const pendingAction = updateActionRef.current;
+        updateRef.current = null;
+        downloadedRef.current = false;
+        if (update) {
+          if (pendingAction) {
+            void pendingAction
+              .finally(() => update.close().catch(() => undefined))
+              .catch(() => undefined);
+          } else {
+            void update.close().catch(() => undefined);
+          }
+        }
+      };
+    },
+    []
+  );
+
+  const modalLocked = status === 'installing';
+
   const closeUpdateModal = useCallback(() => {
-    if (status !== 'downloading') setOpen(false);
-  }, [status]);
+    if (!modalLocked) setOpen(false);
+  }, [modalLocked]);
 
   const openReleaseLink = useCallback(
     async (url: string) => {
@@ -168,6 +348,10 @@ export default function UpdateCenter({ notify }: Props) {
     [notify]
   );
 
+  const openReleasePage = useCallback(() => {
+    void openReleaseLink(RELEASES_URL);
+  }, [openReleaseLink]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -184,58 +368,186 @@ export default function UpdateCenter({ notify }: Props) {
     };
   }, [closeUpdateModal, open]);
 
-  const installUpdate = async () => {
-    const update = updateRef.current;
-    if (!update) return;
+  const runUpdateAction = useCallback((operation: () => Promise<void>) => {
+    if (updateActionRef.current) return updateActionRef.current;
 
-    setStatus('downloading');
-    setDownloadedBytes(0);
-    setTotalBytes(0);
-    setErrorMessage('');
+    const action = operation();
+    updateActionRef.current = action;
+    void action
+      .finally(() => {
+        if (updateActionRef.current === action) updateActionRef.current = null;
+      })
+      .catch(() => undefined);
+    return action;
+  }, []);
 
-    try {
-      await update.downloadAndInstall((event: DownloadEvent) => {
-        if (event.event === 'Started') {
-          setTotalBytes(event.data.contentLength || 0);
-        } else if (event.event === 'Progress') {
-          setDownloadedBytes((value) => value + event.data.chunkLength);
-        } else {
-          setStatus('ready');
+  const downloadUpdate = () =>
+    runUpdateAction(async () => {
+      const update = updateRef.current;
+      if (!update || disposedRef.current) return;
+
+      setStatus('downloading');
+      downloadedRef.current = false;
+      setDownloadedBytes(0);
+      setTotalBytes(0);
+      setDownloadAttempt(1);
+      setFailure(null);
+
+      for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt += 1) {
+        if (disposedRef.current) return;
+        setDownloadAttempt(attempt);
+        setDownloadedBytes(0);
+        setTotalBytes(0);
+
+        try {
+          await update.download(
+            (event: DownloadEvent) => {
+              if (disposedRef.current) return;
+              if (event.event === 'Started') {
+                setTotalBytes(event.data.contentLength || 0);
+              } else if (event.event === 'Progress') {
+                setDownloadedBytes((value) => value + event.data.chunkLength);
+              }
+            },
+            { timeout: DOWNLOAD_TIMEOUT_MS }
+          );
+          if (disposedRef.current) {
+            await update.close().catch(() => undefined);
+            return;
+          }
+          downloadedRef.current = true;
+          setStatus('downloaded');
+          notify('更新包已下载并通过签名校验', 'success');
+          return;
+        } catch (error) {
+          if (disposedRef.current) {
+            await update.close().catch(() => undefined);
+            return;
+          }
+          const shouldRetry =
+            attempt < MAX_REQUEST_ATTEMPTS && canRetryUpdaterRequest(error);
+          if (shouldRetry) {
+            await wait(1_200 * attempt);
+            continue;
+          }
+          setFailure(describeUpdaterFailure(error, 'download'));
+          setStatus('error');
+          notify('更新包下载失败', 'error');
+          return;
         }
-      });
-      setStatus('ready');
-      notify('更新安装完成，应用即将重启', 'success');
+      }
+    });
+
+  const relaunchApplication = async () => {
+    try {
       const { relaunch } = await import('@tauri-apps/plugin-process');
       await relaunch();
     } catch (error) {
+      if (disposedRef.current) return;
+      setFailure(describeUpdaterFailure(error, 'restart'));
       setStatus('error');
-      setErrorMessage(error instanceof Error ? error.message : String(error));
-      notify('下载或安装更新失败', 'error');
+      notify('更新已安装，请手动重启应用', 'error');
     }
+  };
+
+  const restartApplication = () => runUpdateAction(relaunchApplication);
+
+  const installUpdate = () =>
+    runUpdateAction(async () => {
+      const update = updateRef.current;
+      if (!update || !downloadedRef.current || disposedRef.current) return;
+
+      setStatus('installing');
+      setFailure(null);
+
+      try {
+        await update.install();
+        downloadedRef.current = false;
+        if (!disposedRef.current) {
+          notify('更新安装完成，应用即将重启', 'success');
+        }
+        await relaunchApplication();
+      } catch (error) {
+        if (disposedRef.current) return;
+        setFailure(describeUpdaterFailure(error, 'install'));
+        setStatus('error');
+        notify('安装更新失败', 'error');
+      }
+    });
+
+  const retryFailedOperation = async () => {
+    if (!failure) return;
+    if (failure.stage === 'check') {
+      await checkForUpdates(false);
+    } else if (failure.stage === 'download' || failure.stage === 'verify') {
+      await downloadUpdate();
+    } else if (failure.stage === 'install') {
+      await installUpdate();
+    } else {
+      await restartApplication();
+    }
+  };
+
+  const failureTitles: Record<UpdateFailureStage, string> = {
+    check: '检查更新失败',
+    download: '更新包下载失败',
+    verify: '更新包校验失败',
+    install: '更新安装失败',
+    restart: '请重启以完成更新'
+  };
+
+  const retryLabels: Record<UpdateFailureStage, string> = {
+    check: '重新检查',
+    download: '重试下载',
+    verify: '重新下载',
+    install: '重试安装',
+    restart: '立即重启'
   };
 
   const progress = totalBytes
     ? Math.min(100, Math.round((downloadedBytes / totalBytes) * 100))
     : 0;
+  const hasAvailableUpdate =
+    status === 'available' ||
+    status === 'downloading' ||
+    status === 'downloaded' ||
+    (status === 'error' &&
+      failure !== null &&
+      failure.stage !== 'check' &&
+      failure.stage !== 'restart');
 
   return (
     <>
       <button
         className={`top-icon-button update-trigger ${
-          status === 'available' ? 'has-update' : ''
+          hasAvailableUpdate ? 'has-update' : ''
         }`}
         type="button"
         onClick={() => {
           setOpen(true);
-          if (status !== 'available' && status !== 'downloading') {
+          if (status === 'idle' || status === 'current' || status === 'checking') {
             void checkForUpdates(false);
           }
         }}
-        title={status === 'available' ? `发现新版本 ${availableVersion}` : '检查应用更新'}
-        aria-label="检查应用更新"
+        title={
+          status === 'downloading'
+            ? '正在后台下载更新'
+            : status === 'downloaded'
+              ? '更新已下载，等待安装'
+            : hasAvailableUpdate
+              ? `发现新版本 ${availableVersion}`
+              : '检查应用更新'
+        }
+        aria-label={
+          status === 'downloading'
+            ? '查看更新下载进度'
+            : status === 'downloaded'
+              ? '安装已下载的更新'
+              : '检查应用更新'
+        }
       >
         <CloudDownload size={18} />
-        {status === 'available' && <i />}
+        {hasAvailableUpdate && <i />}
       </button>
 
       {portalReady &&
@@ -263,7 +575,7 @@ export default function UpdateCenter({ notify }: Props) {
               <button
                 className="modal-close"
                 type="button"
-                disabled={status === 'downloading'}
+                disabled={modalLocked}
                 onClick={closeUpdateModal}
                 aria-label="关闭更新窗口"
               >
@@ -288,7 +600,10 @@ export default function UpdateCenter({ notify }: Props) {
                 </div>
               )}
 
-              {(status === 'available' || status === 'downloading' || status === 'ready') && (
+              {(status === 'available' ||
+                status === 'downloading' ||
+                status === 'downloaded' ||
+                status === 'installing') && (
                 <>
                   <div className="update-version-card">
                     <span>
@@ -342,7 +657,13 @@ export default function UpdateCenter({ notify }: Props) {
                         <span style={{ width: `${progress}%` }} />
                       </div>
                       <p>
-                        <span>{totalBytes ? `正在下载 ${progress}%` : '正在准备更新包'}</span>
+                        <span>
+                          {downloadAttempt > 1
+                            ? `连接不稳定，正在重试（${downloadAttempt}/${MAX_REQUEST_ATTEMPTS}）`
+                            : totalBytes
+                              ? `正在下载并校验 ${progress}%`
+                              : '正在准备更新包'}
+                        </span>
                         {totalBytes > 0 && (
                           <span>
                             {(downloadedBytes / 1024 / 1024).toFixed(1)} /{' '}
@@ -353,10 +674,17 @@ export default function UpdateCenter({ notify }: Props) {
                     </div>
                   )}
 
-                  {status === 'ready' && (
+                  {status === 'downloaded' && (
                     <div className="update-ready">
                       <CheckCircle2 size={18} />
-                      更新已安装，正在重新启动应用…
+                      更新包已下载并完成签名校验。安装时应用将自动重启。
+                    </div>
+                  )}
+
+                  {status === 'installing' && (
+                    <div className="update-ready is-installing">
+                      <LoaderCircle size={18} className="spin" />
+                      正在安装更新，请勿关闭应用…
                     </div>
                   )}
 
@@ -370,8 +698,14 @@ export default function UpdateCenter({ notify }: Props) {
               {status === 'error' && (
                 <div className="update-state is-error">
                   <CloudDownload size={30} />
-                  <strong>检查更新失败</strong>
-                  <span>{errorMessage || '请稍后重试。'}</span>
+                  <strong>{failure ? failureTitles[failure.stage] : '更新失败'}</strong>
+                  <span>{failure?.message || '请稍后重试。'}</span>
+                  {failure?.details && (
+                    <details className="update-error-details">
+                      <summary>查看技术详情</summary>
+                      <code>{failure.details}</code>
+                    </details>
+                  )}
                 </div>
               )}
             </div>
@@ -379,24 +713,44 @@ export default function UpdateCenter({ notify }: Props) {
             <footer className="modal-actions update-actions">
               <span>{currentVersion ? `当前版本 ${currentVersion}` : '正式版通道'}</span>
               <div>
-                {status !== 'downloading' && status !== 'ready' && (
+                {status === 'error' && failure?.stage !== 'restart' && (
                   <button
                     className="button button-secondary"
                     type="button"
-                    onClick={() => void checkForUpdates(false)}
+                    onClick={openReleasePage}
                   >
-                    <RefreshCw size={15} />
-                    重新检查
+                    <ExternalLink size={15} />
+                    手动下载
                   </button>
                 )}
                 {status === 'available' && (
                   <button
                     className="button button-primary"
                     type="button"
-                    onClick={() => void installUpdate()}
+                    onClick={() => void downloadUpdate()}
                   >
                     <Download size={16} />
-                    下载并安装
+                    下载更新
+                  </button>
+                )}
+                {status === 'downloaded' && (
+                  <button
+                    className="button button-primary"
+                    type="button"
+                    onClick={() => void installUpdate()}
+                  >
+                    <Rocket size={16} />
+                    安装并重启
+                  </button>
+                )}
+                {status === 'error' && failure && (
+                  <button
+                    className="button button-primary"
+                    type="button"
+                    onClick={retryFailedOperation}
+                  >
+                    <RefreshCw size={15} />
+                    {retryLabels[failure.stage]}
                   </button>
                 )}
               </div>

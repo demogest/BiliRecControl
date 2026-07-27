@@ -2215,6 +2215,38 @@ main {
   color: #9e7780;
 }
 
+.update-error-details {
+  width: min(430px, 100%);
+  margin-top: 5px;
+  color: #7f6b73;
+  font-size: 8px;
+  text-align: left;
+}
+
+.update-error-details > summary {
+  width: max-content;
+  margin: 0 auto;
+  cursor: pointer;
+  color: #9e7780;
+  user-select: none;
+}
+
+.update-error-details > code {
+  display: block;
+  max-height: 82px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid rgba(255, 89, 123, 0.12);
+  border-radius: 7px;
+  color: #a9828b;
+  background: rgba(255, 89, 123, 0.035);
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .update-version-card {
   display: grid;
   min-height: 82px;
@@ -2501,6 +2533,12 @@ main {
   color: #91efbd;
   border: 1px solid rgba(85, 230, 159, 0.14);
   background: rgba(85, 230, 159, 0.045);
+}
+
+.update-ready.is-installing {
+  color: #82d8ce;
+  border-color: rgba(62, 231, 211, 0.12);
+  background: rgba(62, 231, 211, 0.035);
 }
 
 .update-security-note {

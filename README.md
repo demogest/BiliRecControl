@@ -97,7 +97,7 @@ git tag v1.4.0
 git push origin v1.4.0
 ```
 
-工作流会验证标签与包版本一致，为 Windows、Linux 和 macOS 的 x64/ARM64 构建安装包与便携 ZIP，生成 `latest.json`，最后发布 Release。更新私钥只保存在 GitHub Actions 的 `TAURI_SIGNING_PRIVATE_KEY` Secret 中；仓库和应用仅包含公钥。
+工作流会验证标签与包版本一致，为 Windows、Linux 和 macOS 的 x64/ARM64 构建安装包与便携 ZIP，生成 `latest.json`，最后发布 Release。清单中的安装包地址固定到当前版本的公开 GitHub Release 下载地址；发布前会验证平台、签名、仓库和标签，发布后还会以匿名请求探测元数据及全部安装包，避免把需要 API 凭据或无法公开访问的地址交给客户端。更新私钥只保存在 GitHub Actions 的 `TAURI_SIGNING_PRIVATE_KEY` Secret 中；仓库和应用仅包含公钥。
 
 发布前会自动查找上一个版本标签，并根据两个标签之间的非合并 Git 提交生成 Changelog。符合 [提交规范](CONTRIBUTING.md) 的提交会自动归入“新功能、问题修复、性能优化、重构、文档、工程维护”等分组；生成内容会覆盖 Draft Release 的 Release Note，工作流重跑时也会同步刷新。不合规提交会中止发布。
 
@@ -109,7 +109,7 @@ npm run changelog
 
 ## 应用内更新
 
-桌面程序启动 4 秒后会静默检查稳定更新通道，也可点击顶栏的下载图标手动检查。发现新版本后，用户可查看版本说明并主动执行下载安装；更新完成后应用自动重启。
+桌面程序启动 4 秒后会静默检查稳定更新通道，也可点击顶栏的下载图标手动检查。发现新版本后，先由用户下载并完成签名校验，再由用户确认“安装并重启”，避免下载完成后立即打断当前操作。检查、下载、校验、安装和重启错误会分别提示；下载失败时也可直接前往 Release 页面手动安装。
 
 更新源固定为：
 
@@ -118,6 +118,8 @@ https://github.com/demogest/BiliRecControl/releases/latest/download/latest.json
 ```
 
 Tauri 会校验更新元数据和安装包签名。私钥一旦丢失，现有客户端将无法验证以后使用新密钥发布的版本，因此必须另行做好安全备份，且不能提交到 Git。
+
+如果已发布版本的 `latest.json` 出现元数据错误，可手动运行 [Repair updater manifest](.github/workflows/repair-updater-manifest.yml) 并填写版本标签。该工作流只会依据现有签名资产重建、替换和匿名验证更新清单，不会重新构建安装包；只有明确勾选时才会将该版本设为最新版本。
 
 ## 凭据说明
 

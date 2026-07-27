@@ -1,0 +1,135 @@
+name: Repair updater manifest
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing published release tag to repair (for example, v1.4.9)
+        required: true
+        type: string
+      make_latest:
+        description: Promote this release to latest after anonymous verification
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-updater-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Rebuild public updater metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout current release tooling
+        uses: actions/checkout@v7
+
+      - name: Validate requested tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: >-
+          node --input-type=module -e
+          "import { assertUpdaterReleaseTag } from './scripts/lib/updater-manifest.mjs';
+          assertUpdaterReleaseTag(process.env.RELEASE_TAG);"
+
+      - name: Rebuild updater manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_id="$(
+            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id'
+          )"
+          manifest_path="${RUNNER_TEMP}/latest.json"
+
+          node scripts/build-updater-manifest.mjs \
+            --repository "${GITHUB_REPOSITORY}" \
+            --release-id "${release_id}" \
+            --tag "${RELEASE_TAG}" \
+            --output "${manifest_path}"
+          node scripts/validate-updater-manifest.mjs \
+            --input "${manifest_path}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --tag "${RELEASE_TAG}"
+
+      - name: Probe package URLs anonymously before replacement
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/validate-updater-manifest.mjs \
+            --input "${RUNNER_TEMP}/latest.json" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --tag "${RELEASE_TAG}" \
+            --probe
+
+      - name: Replace updater manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "${RELEASE_TAG}" "${RUNNER_TEMP}/latest.json" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber
+
+      - name: Verify repaired manifest anonymously
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-public-updater.mjs \
+            --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/latest.json" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --tag "${RELEASE_TAG}" \
+            --probe
+
+      - name: Promote requested release
+        id: promotion
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          MAKE_LATEST: ${{ inputs.make_latest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${MAKE_LATEST}" = "true" ]]; then
+            release_id="$(
+              gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id'
+            )"
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+              -f make_latest=true
+          fi
+
+          latest_tag="$(
+            gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name'
+          )"
+          if [[ "${latest_tag}" = "${RELEASE_TAG}" ]]; then
+            echo "is_latest=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "is_latest=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Verify latest alias anonymously
+        if: steps.promotion.outputs.is_latest == 'true'
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-public-updater.mjs \
+            --url "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/latest.json" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --tag "${RELEASE_TAG}"

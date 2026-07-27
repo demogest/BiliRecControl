@@ -1,4 +1,9 @@
 import { writeFileSync } from 'node:fs';
+import {
+  assertUploadedReleaseAsset,
+  updaterPackagesForVersion,
+  validateUpdaterManifest
+} from './lib/updater-manifest.mjs';
 
 function readArguments(argv) {
   const result = {};
@@ -57,56 +62,11 @@ const assets = await (
 ).json();
 const assetsByName = new Map(assets.map((asset) => [asset.name, asset]));
 
-const packages = [
-  {
-    name: `BiliRec.Control_${version}_x64-setup.exe`,
-    platforms: ['windows-x86_64', 'windows-x86_64-nsis']
-  },
-  {
-    name: `BiliRec.Control_${version}_x64_en-US.msi`,
-    platforms: ['windows-x86_64-msi']
-  },
-  {
-    name: `BiliRec.Control_${version}_arm64-setup.exe`,
-    platforms: ['windows-aarch64', 'windows-aarch64-nsis']
-  },
-  {
-    name: `BiliRec.Control_${version}_amd64.AppImage`,
-    platforms: ['linux-x86_64', 'linux-x86_64-appimage']
-  },
-  {
-    name: `BiliRec.Control_${version}_amd64.deb`,
-    platforms: ['linux-x86_64-deb']
-  },
-  {
-    name: `BiliRec.Control-${version}-1.x86_64.rpm`,
-    platforms: ['linux-x86_64-rpm']
-  },
-  {
-    name: `BiliRec.Control_${version}_aarch64.AppImage`,
-    platforms: ['linux-aarch64', 'linux-aarch64-appimage']
-  },
-  {
-    name: `BiliRec.Control_${version}_arm64.deb`,
-    platforms: ['linux-aarch64-deb']
-  },
-  {
-    name: `BiliRec.Control-${version}-1.aarch64.rpm`,
-    platforms: ['linux-aarch64-rpm']
-  },
-  {
-    name: `BiliRec.Control_${version}_x64.app.tar.gz`,
-    platforms: ['darwin-x86_64', 'darwin-x86_64-app']
-  },
-  {
-    name: `BiliRec.Control_${version}_aarch64.app.tar.gz`,
-    platforms: ['darwin-aarch64', 'darwin-aarch64-app']
-  },
-  {
-    name: `BiliRec.Control_${version}_universal.app.tar.gz`,
-    platforms: ['darwin-universal', 'darwin-universal-app']
-  }
-];
+if (release.tag_name !== tag) {
+  throw new Error(`Release ${releaseId} belongs to ${release.tag_name}, not ${tag}.`);
+}
+
+const packages = updaterPackagesForVersion(version);
 
 const platforms = {};
 for (const entry of packages) {
@@ -114,6 +74,20 @@ for (const entry of packages) {
   const signatureAsset = assetsByName.get(`${entry.name}.sig`);
   if (!asset || !signatureAsset) {
     throw new Error(`Release package or signature is missing: ${entry.name}`);
+  }
+
+  const url = assertUploadedReleaseAsset(asset, {
+    repository,
+    tag,
+    assetName: entry.name
+  });
+  assertUploadedReleaseAsset(signatureAsset, {
+    repository,
+    tag,
+    assetName: `${entry.name}.sig`
+  });
+  if (!Number.isInteger(signatureAsset.id) || signatureAsset.id <= 0) {
+    throw new Error(`Release signature has no valid GitHub asset id: ${signatureAsset.name}`);
   }
 
   const signature = (
@@ -132,7 +106,7 @@ for (const entry of packages) {
   for (const platform of entry.platforms) {
     platforms[platform] = {
       signature,
-      url: asset.url
+      url
     };
   }
 }
@@ -153,6 +127,7 @@ const manifest = {
   platforms
 };
 
+validateUpdaterManifest(manifest, { repository, tag });
 writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 process.stdout.write(
   `Generated ${outputPath} with ${Object.keys(platforms).length} signed platform mappings.\n`
