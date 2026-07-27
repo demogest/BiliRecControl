@@ -382,7 +382,9 @@ jobs:
         run: |
           set -euo pipefail
           channel_release="$(
-            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/ci-latest" 2>/dev/null || true
+            gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[] | select(.tag_name == "ci-latest")'
           )"
           if [[ -z "${channel_release}" ]]; then
             channel_release="$(
@@ -390,7 +392,6 @@ jobs:
                 -f tag_name=ci-latest \
                 -f target_commitish="${GITHUB_SHA}" \
                 -f name="BiliRec Control 测试版更新通道" \
-                -f body="Current preview: \`${PREVIEW_VERSION}\`" \
                 -F draft=true \
                 -F prerelease=true \
                 -f make_latest=false
@@ -398,8 +399,20 @@ jobs:
           fi
 
           channel_release_id="$(node -e "const value=JSON.parse(process.argv[1]);process.stdout.write(String(value.id))" "${channel_release}")"
+          channel_tag="$(node -e "const value=JSON.parse(process.argv[1]);process.stdout.write(value.tag_name || '')" "${channel_release}")"
           channel_is_draft="$(node -e "const value=JSON.parse(process.argv[1]);process.stdout.write(String(value.draft === true))" "${channel_release}")"
+          channel_is_prerelease="$(node -e "const value=JSON.parse(process.argv[1]);process.stdout.write(String(value.prerelease === true))" "${channel_release}")"
           channel_body="$(node -e "const value=JSON.parse(process.argv[1]);process.stdout.write(value.body || '')" "${channel_release}")"
+          channel_body_is_empty="$(node -e "const value=JSON.parse(process.argv[1]);process.stdout.write(String(typeof value.body !== 'string' || value.body.trim() === ''))" "${channel_release}")"
+          channel_asset_count="$(node -e "const value=JSON.parse(process.argv[1]);process.stdout.write(String(Array.isArray(value.assets) ? value.assets.length : -1))" "${channel_release}")"
+          if [[ ! "${channel_release_id}" =~ ^[1-9][0-9]*$ ||
+            "${channel_tag}" != "ci-latest" ||
+            "${channel_is_prerelease}" != "true" ||
+            ! "${channel_asset_count}" =~ ^[0-9]+$
+          ]]; then
+            echo "::error::The rolling preview release has unexpected tag or channel metadata."
+            exit 1
+          fi
           current_asset_id="$(
             node -e "
               const value = JSON.parse(process.argv[1]);
@@ -426,6 +439,12 @@ jobs:
               node scripts/preview-version.mjs \
                 --candidate "${current_version}" \
                 --current "${current_version}" \
+                >/dev/null &&
+              node scripts/validate-updater-manifest.mjs \
+                --input "${current_manifest}" \
+                --repository "${GITHUB_REPOSITORY}" \
+                --tag "v${current_version}" \
+                --channel preview \
                 >/dev/null; then
               current_manifest_valid=true
             else
@@ -451,7 +470,10 @@ jobs:
             if [[ "${current_manifest_valid}" != "true" && "${PREVIEW_VERSION}" == "${current_version}" ]]; then
               should_promote=true
             fi
-          elif [[ "${channel_is_draft}" == "true" && -z "${current_asset_id}" ]]; then
+          elif [[ "${channel_is_draft}" == "true" &&
+            "${channel_asset_count}" == "0" &&
+            "${channel_body_is_empty}" == "true"
+          ]]; then
             echo "::notice::Bootstrapping the empty draft preview channel."
             should_promote=true
           else
