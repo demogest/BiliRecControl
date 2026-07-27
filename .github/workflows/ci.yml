@@ -391,13 +391,14 @@ jobs:
                 -f target_commitish="${GITHUB_SHA}" \
                 -f name="BiliRec Control 测试版更新通道" \
                 -f body="Current preview: \`${PREVIEW_VERSION}\`" \
-                -F draft=false \
+                -F draft=true \
                 -F prerelease=true \
                 -f make_latest=false
             )"
           fi
 
           channel_release_id="$(node -e "const value=JSON.parse(process.argv[1]);process.stdout.write(String(value.id))" "${channel_release}")"
+          channel_is_draft="$(node -e "const value=JSON.parse(process.argv[1]);process.stdout.write(String(value.draft === true))" "${channel_release}")"
           channel_body="$(node -e "const value=JSON.parse(process.argv[1]);process.stdout.write(value.body || '')" "${channel_release}")"
           current_asset_id="$(
             node -e "
@@ -450,6 +451,9 @@ jobs:
             if [[ "${current_manifest_valid}" != "true" && "${PREVIEW_VERSION}" == "${current_version}" ]]; then
               should_promote=true
             fi
+          elif [[ "${channel_is_draft}" == "true" && -z "${current_asset_id}" ]]; then
+            echo "::notice::Bootstrapping the empty draft preview channel."
+            should_promote=true
           else
             echo "::error::Cannot determine the current preview version safely."
             exit 1
