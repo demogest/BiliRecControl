@@ -3,7 +3,8 @@ import type {
   ConnectionSettings,
   HistoryOverview,
   MpvPlayResult,
-  MpvStatus
+  MpvStatus,
+  RoomAvatarAsset
 } from './types';
 
 type TauriApiResponse<T> = {
@@ -55,6 +56,10 @@ export async function bilirecRequest<T>(
 
 export function loadRecordingHistory(connection: ConnectionSettings) {
   return invoke<HistoryOverview>('bilirec_history', { connection });
+}
+
+export function loadRoomAvatars(roomIds: number[]) {
+  return invoke<RoomAvatarAsset[]>('load_room_avatars', { roomIds });
 }
 
 export function getMpvStatus() {

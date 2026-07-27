@@ -107,6 +107,12 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Run automated tests
+        if: matrix.archive == 'windows-x64'
+        run: |
+          npm run test:updater
+          npm run test:rust
+
       - name: Build desktop packages
         uses: tauri-apps/tauri-action@v1
         with:

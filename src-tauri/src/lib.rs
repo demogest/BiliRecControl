@@ -1,3 +1,5 @@
+mod avatar_cache;
+
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use reqwest::{Client, Method, Url};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -465,6 +467,14 @@ async fn bilirec_history(connection: ApiConnection) -> Result<HistoryOverview, S
 }
 
 #[tauri::command]
+async fn load_room_avatars(
+    app: tauri::AppHandle,
+    room_ids: Vec<u64>,
+) -> Vec<avatar_cache::RoomAvatarAsset> {
+    avatar_cache::load_room_avatars(app, room_ids).await
+}
+
+#[tauri::command]
 fn mpv_status() -> MpvStatus {
     let Some(path) = find_mpv() else {
         return MpvStatus {
@@ -526,9 +536,7 @@ fn play_with_mpv(
 ) -> Result<MpvPlayResult, String> {
     validate_connection(&connection)?;
     let target = build_file_url(&connection, &file_url)?;
-    let player = find_mpv().ok_or_else(|| {
-        "未找到 MPV，请先安装后重试。".to_string()
-    })?;
+    let player = find_mpv().ok_or_else(|| "未找到 MPV，请先安装后重试。".to_string())?;
     let token = BASE64.encode(format!("{}:{}", connection.username, connection.password));
     let auth_header = format!("Authorization: Basic {token}");
 
@@ -576,6 +584,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             bilirec_request,
             bilirec_history,
+            load_room_avatars,
             mpv_status,
             open_live_room,
             open_external_url,

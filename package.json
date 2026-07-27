@@ -11,10 +11,11 @@
     "changelog": "node scripts/generate-changelog.mjs --auto-from --to HEAD --version main --repository demogest/BiliRecControl --strict",
     "changelog:check": "node scripts/generate-changelog.mjs --auto-from --to HEAD --strict --check",
     "test:updater": "node --test scripts/lib/updater-manifest.test.mjs",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --lib",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build --no-sign",
-    "check": "npm run build && npm run test:updater && cargo check --manifest-path src-tauri/Cargo.toml"
+    "check": "npm run build && npm run test:updater && npm run test:rust && cargo check --manifest-path src-tauri/Cargo.toml"
   },
   "engines": {
     "node": ">=20"

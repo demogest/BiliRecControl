@@ -59,6 +59,13 @@ export type Room = {
   ioStats: IoStats;
 };
 
+export type RoomAvatarAsset = {
+  roomId: number;
+  uid: number | null;
+  dataUrl: string | null;
+  stale: boolean;
+};
+
 export type RecorderVersion = {
   semVer: string;
   informationalVersion: string;

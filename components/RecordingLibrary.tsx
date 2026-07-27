@@ -24,7 +24,9 @@ import {
   loadRecordingHistory,
   playRecordingWithMpv
 } from '@/lib/api';
+import StreamerAvatar from '@/components/StreamerAvatar';
 import { formatBytes } from '@/lib/format';
+import { useRoomAvatars } from '@/lib/use-room-avatars';
 import type {
   ConnectionSettings,
   HistoryFile,
@@ -102,6 +104,10 @@ export default function RecordingLibrary({
 }: Props) {
   const [overview, setOverview] = useState<HistoryOverview | null>(null);
   const [mpv, setMpv] = useState<MpvStatus | null>(null);
+  const avatarByRoom = useRoomAvatars(
+    (overview?.rooms || []).map((room) => room.roomId),
+    open
+  );
   const [loading, setLoading] = useState(false);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<number | 'all'>('all');
@@ -351,9 +357,12 @@ export default function RecordingLibrary({
                   type="button"
                   onClick={() => setSelectedRoomId(room.roomId)}
                 >
-                  <span className="history-avatar">
-                    {room.roomName.slice(0, 2).toUpperCase()}
-                  </span>
+                  <StreamerAvatar
+                    className="history-avatar"
+                    roomId={room.roomId}
+                    name={room.roomName}
+                    src={avatarByRoom[room.roomId]}
+                  />
                   <span className="history-room-copy">
                     <strong title={room.roomName}>{room.roomName}</strong>
                     <small>

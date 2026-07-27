@@ -47,7 +47,9 @@ import { bilirecRequest, openLiveRoom } from '@/lib/api';
 import AboutCenter from '@/components/AboutCenter';
 import ConfigurationCenter from '@/components/ConfigurationCenter';
 import RecordingLibrary from '@/components/RecordingLibrary';
+import StreamerAvatar from '@/components/StreamerAvatar';
 import UpdateCenter from '@/components/UpdateCenter';
+import { useRoomAvatars } from '@/lib/use-room-avatars';
 import { parseBilibiliRoomId } from '@/lib/room-input';
 import {
   finiteNumber,
@@ -174,7 +176,8 @@ function RoomCard({
   onDelete,
   onHistory,
   onConfigure,
-  onWatch
+  onWatch,
+  avatarSrc
 }: {
   room: Room;
   busy: boolean;
@@ -183,12 +186,12 @@ function RoomCard({
   onHistory: (room: Room) => void;
   onConfigure: (room: Room) => void;
   onWatch: (room: Room) => void;
+  avatarSrc?: string | null;
 }) {
   const status = room.recording ? 'recording' : room.streaming ? 'live' : 'offline';
   const statusLabel = room.recording ? '录制中' : room.streaming ? '直播中' : '离线';
   const ratio = finiteNumber(room.recordingStats?.durationRatio);
   const ratioPercent = room.recording ? Math.min(Math.max(ratio * 100, 0), 100) : 0;
-  const initials = (room.name || String(room.roomId)).slice(0, 2).toUpperCase();
   const sessionStartedAt = room.recording ? parseSessionStart(room.ioStats?.startTime) : null;
 
   return (
@@ -196,10 +199,14 @@ function RoomCard({
       <div className="room-card-glow" />
       <header className="room-card-header">
         <div className="room-identity">
-          <div className="room-avatar">
-            <span>{initials}</span>
+          <StreamerAvatar
+            className="room-avatar"
+            roomId={room.roomId}
+            name={room.name}
+            src={avatarSrc}
+          >
             <i className={`room-presence presence-${status}`} />
-          </div>
+          </StreamerAvatar>
           <div className="room-name-group">
             <h3 title={room.name || undefined}>{room.name || `房间 ${room.roomId}`}</h3>
             <span>
@@ -391,6 +398,7 @@ export default function Dashboard() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const avatarByRoom = useRoomAvatars(rooms.map((room) => room.roomId));
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [version, setVersion] = useState<RecorderVersion | null>(null);
   const [connected, setConnected] = useState(false);
@@ -1042,6 +1050,7 @@ export default function Dashboard() {
                 <RoomCard
                   key={room.objectId}
                   room={room}
+                  avatarSrc={avatarByRoom[room.roomId]}
                   busy={busyRoomId === room.roomId}
                   onAction={requestRoomAction}
                   onDelete={requestDeleteRoom}

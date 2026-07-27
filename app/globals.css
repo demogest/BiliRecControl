@@ -969,6 +969,23 @@ main {
   place-items: center;
 }
 
+.room-avatar > img,
+.history-avatar > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  user-select: none;
+}
+
+.avatar-fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+}
+
 .room-presence {
   position: absolute;
   right: -2px;
