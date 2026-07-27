@@ -183,6 +183,39 @@ test('requires an uploaded non-empty asset with a canonical browser URL', () => 
   );
 });
 
+test('converts GitHub draft asset URLs to their future public tagged URLs', () => {
+  const assetName = updaterPackagesForVersion(version)[0].name;
+  const canonicalUrl = publicReleaseAssetUrl(repository, tag, assetName);
+  const draftUrl = `https://github.com/${repository}/releases/download/untagged-b8d44c28c2bfc48e013f/${encodeURIComponent(assetName)}`;
+  const asset = {
+    state: 'uploaded',
+    size: 1024,
+    browser_download_url: draftUrl
+  };
+
+  assert.equal(
+    assertUploadedReleaseAsset(asset, {
+      repository,
+      tag,
+      assetName,
+      releaseIsDraft: true
+    }),
+    canonicalUrl
+  );
+  assert.throws(() => assertUploadedReleaseAsset(asset, { repository, tag, assetName }), /tag/);
+  assert.throws(
+    () =>
+      assertUploadedReleaseAsset(
+        {
+          ...asset,
+          browser_download_url: draftUrl.replace(repository, 'demogest/AnotherRepository')
+        },
+        { repository, tag, assetName, releaseIsDraft: true }
+      ),
+    /current repository and asset/
+  );
+});
+
 test('anonymous probes reject a successful HTML response', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>

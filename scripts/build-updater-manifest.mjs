@@ -80,12 +80,14 @@ for (const entry of packages) {
   const url = assertUploadedReleaseAsset(asset, {
     repository,
     tag,
-    assetName: entry.name
+    assetName: entry.name,
+    releaseIsDraft: release.draft === true
   });
   assertUploadedReleaseAsset(signatureAsset, {
     repository,
     tag,
-    assetName: `${entry.name}.sig`
+    assetName: `${entry.name}.sig`,
+    releaseIsDraft: release.draft === true
   });
   if (!Number.isInteger(signatureAsset.id) || signatureAsset.id <= 0) {
     throw new Error(`Release signature has no valid GitHub asset id: ${signatureAsset.name}`);
