@@ -21,6 +21,22 @@ const categoryLabels = {
   maintenance: '🛠 工程维护'
 };
 
+const supportedTypes = new Set([
+  'feat',
+  'fix',
+  'perf',
+  'refactor',
+  'docs',
+  'build',
+  'ci',
+  'chore',
+  'style',
+  'test',
+  'revert'
+]);
+const scopePattern = /^[a-z0-9][a-z0-9-]*$/;
+const subjectMaxLength = 100;
+
 function readArguments(argv) {
   const result = {};
   for (let index = 0; index < argv.length; index += 1) {
@@ -42,13 +58,56 @@ function escapeMarkdown(value) {
   return value.replaceAll('\\', '\\\\').replaceAll('[', '\\[').replaceAll(']', '\\]');
 }
 
+function validateCommitSubject(subject, conventional) {
+  if (!conventional) {
+    return ['标题必须使用 <type>(<scope>)!: <description> 格式'];
+  }
+
+  const [, rawType, scope, breakingMarker, rawMessage] = conventional;
+  const type = rawType.toLowerCase();
+  const errors = [];
+
+  if (rawType !== type) {
+    errors.push('type 必须使用小写字母');
+  }
+  if (!supportedTypes.has(type)) {
+    errors.push(`不支持 type "${rawType}"`);
+  }
+  if (scope && !scopePattern.test(scope)) {
+    errors.push('scope 只能使用小写字母、数字和短横线');
+  }
+
+  const expectedSubject = `${rawType}${scope ? `(${scope})` : ''}${
+    breakingMarker || ''
+  }: ${rawMessage}`;
+  if (subject !== expectedSubject) {
+    errors.push('冒号后必须有且只有一个空格');
+  }
+  if (subject.length > subjectMaxLength) {
+    errors.push(`标题不能超过 ${subjectMaxLength} 个字符`);
+  }
+  if (/[。.]\s*$/.test(rawMessage)) {
+    errors.push('description 末尾不能使用句号');
+  }
+
+  return errors;
+}
+
 function parseCommit(record) {
   const [hash, rawSubject, author] = record.split('\x1f');
   const subject = rawSubject?.trim() || '未命名提交';
   const conventional = subject.match(/^([a-zA-Z]+)(?:\(([^)]+)\))?(!)?:\s*(.+)$/);
+  const validationErrors = validateCommitSubject(subject, conventional);
 
   if (!conventional) {
-    return { hash, author, category: 'maintenance', message: subject };
+    return {
+      hash,
+      author,
+      subject,
+      validationErrors,
+      category: 'maintenance',
+      message: subject
+    };
   }
 
   const [, rawType, scope, breakingMarker, rawMessage] = conventional;
@@ -60,7 +119,7 @@ function parseCommit(record) {
       : 'maintenance';
   const message = scope ? `**${escapeMarkdown(scope)}：** ${rawMessage}` : rawMessage;
 
-  return { hash, author, category, message };
+  return { hash, author, subject, validationErrors, category, message };
 }
 
 function gitLog(range) {
@@ -96,6 +155,31 @@ if (!from && args['auto-from']) {
 }
 const range = from ? `${from}..${to}` : to;
 const commits = gitLog(range);
+if (args.strict || args.check) {
+  const invalidCommits = commits.filter((commit) => commit.validationErrors.length > 0);
+  if (invalidCommits.length > 0) {
+    const details = invalidCommits.flatMap((commit) => [
+      `- ${commit.hash.slice(0, 7)} ${commit.subject}`,
+      ...commit.validationErrors.map((error) => `  - ${error}`)
+    ]);
+    process.stderr.write(
+      [
+        `发现 ${invalidCommits.length} 个不符合 CONTRIBUTING.md 的提交标题：`,
+        '',
+        ...details,
+        '',
+        '请整理提交历史后重试。'
+      ].join('\n') + '\n'
+    );
+    process.exit(1);
+  }
+}
+
+if (args.check) {
+  process.stdout.write(`已检查 ${commits.length} 个非合并提交，标题均符合规范。\n`);
+  process.exit(0);
+}
+
 const grouped = Object.fromEntries(categoryOrder.map((category) => [category, []]));
 
 for (const commit of commits) {

@@ -74,6 +74,10 @@ npm run tauri:dev
 
 首次打开会显示连接设置。填写录播姬服务根地址、Basic Auth 用户名和密码后，点击“保存并连接”。
 
+## 贡献与提交规范
+
+本仓库根据 Git 提交记录自动生成版本 Changelog。所有进入 `main` 的非合并提交都必须使用约定的 Conventional Commit 标题；允许的 type、scope、破坏性变更格式、示例及发布提交要求见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
 ## 本地构建
 
 ```powershell
@@ -95,7 +99,7 @@ git push origin v1.4.0
 
 工作流会验证标签与包版本一致，为 Windows、Linux 和 macOS 的 x64/ARM64 构建安装包与便携 ZIP，生成 `latest.json`，最后发布 Release。更新私钥只保存在 GitHub Actions 的 `TAURI_SIGNING_PRIVATE_KEY` Secret 中；仓库和应用仅包含公钥。
 
-发布前会自动查找上一个版本标签，并根据两个标签之间的非合并 Git 提交生成 Changelog。遵循 Conventional Commits 的提交会自动归入“新功能、问题修复、性能优化、重构、文档、工程维护”等分组；生成内容会覆盖 Draft Release 的 Release Note，工作流重跑时也会同步刷新。
+发布前会自动查找上一个版本标签，并根据两个标签之间的非合并 Git 提交生成 Changelog。符合 [提交规范](CONTRIBUTING.md) 的提交会自动归入“新功能、问题修复、性能优化、重构、文档、工程维护”等分组；生成内容会覆盖 Draft Release 的 Release Note，工作流重跑时也会同步刷新。不合规提交会中止发布。
 
 可在本地预览尚未发布的提交说明：
 

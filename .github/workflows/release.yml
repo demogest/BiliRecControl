@@ -53,6 +53,7 @@ jobs:
             --version "${GITHUB_REF_NAME}"
             --repository "${GITHUB_REPOSITORY}"
             --output "${NOTES_PATH}"
+            --strict
           )
           if [[ -n "${previous_tag}" ]]; then
             arguments+=(--from "${previous_tag}")
