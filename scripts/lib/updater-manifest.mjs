@@ -123,7 +123,9 @@ export function assertUploadedReleaseAsset(asset, context) {
     throw new Error(`Release asset is missing: ${context.assetName}`);
   }
   if (asset.state !== 'uploaded') {
-    throw new Error(`Release asset is not ready: ${context.assetName} (${asset.state || 'unknown'})`);
+    throw new Error(
+      `Release asset is not ready: ${context.assetName} (${asset.state || 'unknown'})`
+    );
   }
   if (!Number.isFinite(asset.size) || asset.size <= 0) {
     throw new Error(`Release asset is empty: ${context.assetName}`);
@@ -149,10 +151,7 @@ export function validateUpdaterManifest(manifest, { repository, tag }) {
   if (typeof manifest.notes !== 'string' || !manifest.notes.trim()) {
     throw new Error('Updater manifest release notes are empty.');
   }
-  if (
-    typeof manifest.pub_date !== 'string' ||
-    Number.isNaN(Date.parse(manifest.pub_date))
-  ) {
+  if (typeof manifest.pub_date !== 'string' || Number.isNaN(Date.parse(manifest.pub_date))) {
     throw new Error('Updater manifest pub_date is missing or invalid.');
   }
   if (
@@ -203,10 +202,7 @@ export function validateUpdaterManifest(manifest, { repository, tag }) {
   };
 }
 
-export async function probeUpdaterPackageUrls(
-  manifest,
-  { repository, tag, timeout = 30_000 }
-) {
+export async function probeUpdaterPackageUrls(manifest, { repository, tag, timeout = 30_000 }) {
   const summary = validateUpdaterManifest(manifest, { repository, tag });
 
   for (const url of summary.urls) {

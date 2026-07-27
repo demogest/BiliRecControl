@@ -19,11 +19,7 @@ import {
   X
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  getMpvStatus,
-  loadRecordingHistory,
-  playRecordingWithMpv
-} from '@/lib/api';
+import { getMpvStatus, loadRecordingHistory, playRecordingWithMpv } from '@/lib/api';
 import StreamerAvatar from '@/components/StreamerAvatar';
 import { formatBytes } from '@/lib/format';
 import { useRoomAvatars } from '@/lib/use-room-avatars';
@@ -126,10 +122,7 @@ export default function RecordingLibrary({
       ]);
       setOverview(history);
       setMpv(player);
-      if (
-        initialRoomId &&
-        history.rooms.some((room) => room.roomId === initialRoomId)
-      ) {
+      if (initialRoomId && history.rooms.some((room) => room.roomId === initialRoomId)) {
         setSelectedRoomId(initialRoomId);
       } else {
         setSelectedRoomId('all');
@@ -162,8 +155,9 @@ export default function RecordingLibrary({
       .filter((file) => {
         if (filter !== 'all' && fileKind(file) !== filter) return false;
         if (!normalizedQuery) return true;
-        return [file.name, file.roomName, file.roomId, file.extension]
-          .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+        return [file.name, file.roomName, file.roomId, file.extension].some((value) =>
+          String(value).toLowerCase().includes(normalizedQuery)
+        );
       })
       .sort((left, right) => {
         if (sort === 'oldest') return left.lastModified.localeCompare(right.lastModified);
@@ -195,10 +189,7 @@ export default function RecordingLibrary({
     });
   }, [overview, roomSort]);
 
-  const visibleBytes = useMemo(
-    () => files.reduce((total, file) => total + file.size, 0),
-    [files]
-  );
+  const visibleBytes = useMemo(() => files.reduce((total, file) => total + file.size, 0), [files]);
   const libraryTotalBytes = overview?.totalBytes || 0;
 
   const selectedRoom =
@@ -213,11 +204,7 @@ export default function RecordingLibrary({
     }
     setPlayingUrl(file.url);
     try {
-      await playRecordingWithMpv(
-        connection,
-        file.url,
-        `${file.roomName} · ${file.name}`
-      );
+      await playRecordingWithMpv(connection, file.url, `${file.roomName} · ${file.name}`);
       notify(`正在使用 MPV 播放：${file.name}`, 'success');
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error), 'error');
@@ -379,10 +366,7 @@ export default function RecordingLibrary({
                         style={{
                           width: `${
                             libraryTotalBytes
-                              ? Math.max(
-                                  (room.totalBytes / libraryTotalBytes) * 100,
-                                  3
-                                )
+                              ? Math.max((room.totalBytes / libraryTotalBytes) * 100, 3)
                               : 0
                           }%`
                         }}
@@ -525,9 +509,7 @@ export default function RecordingLibrary({
         </div>
 
         <footer className="library-footer">
-          <span>
-            这里只提供查看与播放，不会删除录制文件。
-          </span>
+          <span>这里只提供查看与播放，不会删除录制文件。</span>
           <span>{mpv?.path ? `MPV: ${mpv.path}` : '未找到 MPV'}</span>
         </footer>
       </section>

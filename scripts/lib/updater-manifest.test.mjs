@@ -72,8 +72,7 @@ test('rejects incomplete platform mappings', () => {
 
 test('rejects mismatched signatures for aliases of the same package', () => {
   const manifest = validManifest();
-  manifest.platforms['windows-x86_64-nsis'].signature =
-    'different-signature-'.repeat(8);
+  manifest.platforms['windows-x86_64-nsis'].signature = 'different-signature-'.repeat(8);
 
   assert.throws(
     () => validateUpdaterManifest(manifest, { repository, tag }),
@@ -101,14 +100,8 @@ test('requires an uploaded non-empty asset with a canonical browser URL', () => 
   };
 
   assert.equal(assertUploadedReleaseAsset(asset, context), asset.browser_download_url);
-  assert.throws(
-    () => assertUploadedReleaseAsset({ ...asset, state: 'new' }, context),
-    /not ready/
-  );
-  assert.throws(
-    () => assertUploadedReleaseAsset({ ...asset, size: 0 }, context),
-    /empty/
-  );
+  assert.throws(() => assertUploadedReleaseAsset({ ...asset, state: 'new' }, context), /not ready/);
+  assert.throws(() => assertUploadedReleaseAsset({ ...asset, size: 0 }, context), /empty/);
   assert.throws(
     () =>
       assertUploadedReleaseAsset(

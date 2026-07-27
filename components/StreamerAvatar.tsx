@@ -10,13 +10,7 @@ type Props = {
   children?: ReactNode;
 };
 
-export default function StreamerAvatar({
-  roomId,
-  name,
-  src,
-  className,
-  children
-}: Props) {
+export default function StreamerAvatar({ roomId, name, src, className, children }: Props) {
   const [imageFailed, setImageFailed] = useState(false);
   const initials = (name?.trim() || String(roomId)).slice(0, 2).toUpperCase();
 

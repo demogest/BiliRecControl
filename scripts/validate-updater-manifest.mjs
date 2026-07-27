@@ -1,8 +1,5 @@
 import { readFileSync } from 'node:fs';
-import {
-  probeUpdaterPackageUrls,
-  validateUpdaterManifest
-} from './lib/updater-manifest.mjs';
+import { probeUpdaterPackageUrls, validateUpdaterManifest } from './lib/updater-manifest.mjs';
 
 function readArguments(argv) {
   const result = {};

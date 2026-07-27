@@ -56,15 +56,11 @@ function updaterErrorDetails(error: unknown) {
   return details && details !== '[object Object]' ? details : '未知错误';
 }
 
-function describeUpdaterFailure(
-  error: unknown,
-  fallbackStage: UpdateFailureStage
-): UpdateFailure {
+function describeUpdaterFailure(error: unknown, fallbackStage: UpdateFailureStage): UpdateFailure {
   const details = updaterErrorDetails(error);
   const normalized = details.toLowerCase();
   const stage =
-    fallbackStage === 'download' &&
-    /(signature|public key|校验|签名|验证)/i.test(details)
+    fallbackStage === 'download' && /(signature|public key|校验|签名|验证)/i.test(details)
       ? 'verify'
       : fallbackStage;
 
@@ -216,8 +212,7 @@ export default function UpdateCenter({ notify }: Props) {
               update = await check({ timeout: CHECK_TIMEOUT_MS });
               break;
             } catch (error) {
-              const shouldRetry =
-                attempt < MAX_REQUEST_ATTEMPTS && canRetryUpdaterRequest(error);
+              const shouldRetry = attempt < MAX_REQUEST_ATTEMPTS && canRetryUpdaterRequest(error);
               if (!shouldRetry) throw error;
               await wait(900 * attempt);
               if (disposedRef.current) return;
@@ -299,28 +294,25 @@ export default function UpdateCenter({ notify }: Props) {
     };
   }, [checkForUpdates]);
 
-  useEffect(
-    () => {
-      disposedRef.current = false;
-      return () => {
-        disposedRef.current = true;
-        const update = updateRef.current;
-        const pendingAction = updateActionRef.current;
-        updateRef.current = null;
-        downloadedRef.current = false;
-        if (update) {
-          if (pendingAction) {
-            void pendingAction
-              .finally(() => update.close().catch(() => undefined))
-              .catch(() => undefined);
-          } else {
-            void update.close().catch(() => undefined);
-          }
+  useEffect(() => {
+    disposedRef.current = false;
+    return () => {
+      disposedRef.current = true;
+      const update = updateRef.current;
+      const pendingAction = updateActionRef.current;
+      updateRef.current = null;
+      downloadedRef.current = false;
+      if (update) {
+        if (pendingAction) {
+          void pendingAction
+            .finally(() => update.close().catch(() => undefined))
+            .catch(() => undefined);
+        } else {
+          void update.close().catch(() => undefined);
         }
-      };
-    },
-    []
-  );
+      }
+    };
+  }, []);
 
   const modalLocked = status === 'installing';
 
@@ -424,8 +416,7 @@ export default function UpdateCenter({ notify }: Props) {
             await update.close().catch(() => undefined);
             return;
           }
-          const shouldRetry =
-            attempt < MAX_REQUEST_ATTEMPTS && canRetryUpdaterRequest(error);
+          const shouldRetry = attempt < MAX_REQUEST_ATTEMPTS && canRetryUpdaterRequest(error);
           if (shouldRetry) {
             await wait(1_200 * attempt);
             continue;
@@ -504,9 +495,7 @@ export default function UpdateCenter({ notify }: Props) {
     restart: '立即重启'
   };
 
-  const progress = totalBytes
-    ? Math.min(100, Math.round((downloadedBytes / totalBytes) * 100))
-    : 0;
+  const progress = totalBytes ? Math.min(100, Math.round((downloadedBytes / totalBytes) * 100)) : 0;
   const hasAvailableUpdate =
     status === 'available' ||
     status === 'downloading' ||
@@ -519,9 +508,7 @@ export default function UpdateCenter({ notify }: Props) {
   return (
     <>
       <button
-        className={`top-icon-button update-trigger ${
-          hasAvailableUpdate ? 'has-update' : ''
-        }`}
+        className={`top-icon-button update-trigger ${hasAvailableUpdate ? 'has-update' : ''}`}
         type="button"
         onClick={() => {
           setOpen(true);
@@ -534,9 +521,9 @@ export default function UpdateCenter({ notify }: Props) {
             ? '正在后台下载更新'
             : status === 'downloaded'
               ? '更新已下载，等待安装'
-            : hasAvailableUpdate
-              ? `发现新版本 ${availableVersion}`
-              : '检查应用更新'
+              : hasAvailableUpdate
+                ? `发现新版本 ${availableVersion}`
+                : '检查应用更新'
         }
         aria-label={
           status === 'downloading'
@@ -560,202 +547,204 @@ export default function UpdateCenter({ notify }: Props) {
               if (event.target === event.currentTarget) closeUpdateModal();
             }}
           >
-          <section
-            className="modal-card update-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="应用更新"
-          >
-            <header className="modal-header">
-              <div>
-                <span className="section-kicker">APPLICATION UPDATE</span>
-                <h2>应用更新</h2>
-                <p>获取最新功能和修复</p>
-              </div>
-              <button
-                className="modal-close"
-                type="button"
-                disabled={modalLocked}
-                onClick={closeUpdateModal}
-                aria-label="关闭更新窗口"
-              >
-                <X size={18} />
-              </button>
-            </header>
-
-            <div className="modal-body update-modal-body">
-              {status === 'checking' && (
-                <div className="update-state">
-                  <RefreshCw size={28} className="spin" />
-                  <strong>正在检查新版本</strong>
-                  <span>正在连接更新服务…</span>
+            <section
+              className="modal-card update-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label="应用更新"
+            >
+              <header className="modal-header">
+                <div>
+                  <span className="section-kicker">APPLICATION UPDATE</span>
+                  <h2>应用更新</h2>
+                  <p>获取最新功能和修复</p>
                 </div>
-              )}
+                <button
+                  className="modal-close"
+                  type="button"
+                  disabled={modalLocked}
+                  onClick={closeUpdateModal}
+                  aria-label="关闭更新窗口"
+                >
+                  <X size={18} />
+                </button>
+              </header>
 
-              {status === 'current' && (
-                <div className="update-state is-current">
-                  <CheckCircle2 size={30} />
-                  <strong>当前已是最新版本</strong>
-                  <span>{currentVersion ? `BiliRec Control ${currentVersion}` : '无需更新'}</span>
-                </div>
-              )}
-
-              {(status === 'available' ||
-                status === 'downloading' ||
-                status === 'downloaded' ||
-                status === 'installing') && (
-                <>
-                  <div className="update-version-card">
-                    <span>
-                      <small>当前版本</small>
-                      <strong>{currentVersion || '—'}</strong>
-                    </span>
-                    <Rocket size={22} />
-                    <span>
-                      <small>可用版本</small>
-                      <strong>{availableVersion || '—'}</strong>
-                    </span>
+              <div className="modal-body update-modal-body">
+                {status === 'checking' && (
+                  <div className="update-state">
+                    <RefreshCw size={28} className="spin" />
+                    <strong>正在检查新版本</strong>
+                    <span>正在连接更新服务…</span>
                   </div>
+                )}
 
-                  <div className="update-release-notes">
-                    <header>
-                      <strong>版本说明</strong>
-                      {releaseDate && <span>{new Date(releaseDate).toLocaleDateString('zh-CN')}</span>}
-                    </header>
-                    <div className="update-release-content">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        skipHtml
-                        components={{
-                          a: ({ href, children }) => (
-                            <a
-                              href={href}
-                              onClick={(event) => {
-                                event.preventDefault();
-                                if (href) void openReleaseLink(href);
-                              }}
-                            >
-                              {children}
-                              <ExternalLink size={10} aria-hidden="true" />
-                            </a>
-                          ),
-                          img: ({ alt }) => (
-                            <span className="update-markdown-image">
-                              {alt ? `图片：${alt}` : '图片已隐藏'}
-                            </span>
-                          )
-                        }}
-                      >
-                        {releaseNotes}
-                      </ReactMarkdown>
+                {status === 'current' && (
+                  <div className="update-state is-current">
+                    <CheckCircle2 size={30} />
+                    <strong>当前已是最新版本</strong>
+                    <span>{currentVersion ? `BiliRec Control ${currentVersion}` : '无需更新'}</span>
+                  </div>
+                )}
+
+                {(status === 'available' ||
+                  status === 'downloading' ||
+                  status === 'downloaded' ||
+                  status === 'installing') && (
+                  <>
+                    <div className="update-version-card">
+                      <span>
+                        <small>当前版本</small>
+                        <strong>{currentVersion || '—'}</strong>
+                      </span>
+                      <Rocket size={22} />
+                      <span>
+                        <small>可用版本</small>
+                        <strong>{availableVersion || '—'}</strong>
+                      </span>
                     </div>
-                  </div>
 
-                  {status === 'downloading' && (
-                    <div className="update-progress">
-                      <div>
-                        <span style={{ width: `${progress}%` }} />
-                      </div>
-                      <p>
-                        <span>
-                          {downloadAttempt > 1
-                            ? `连接不稳定，正在重试（${downloadAttempt}/${MAX_REQUEST_ATTEMPTS}）`
-                            : totalBytes
-                              ? `正在下载并校验 ${progress}%`
-                              : '正在准备更新包'}
-                        </span>
-                        {totalBytes > 0 && (
-                          <span>
-                            {(downloadedBytes / 1024 / 1024).toFixed(1)} /{' '}
-                            {(totalBytes / 1024 / 1024).toFixed(1)} MB
-                          </span>
+                    <div className="update-release-notes">
+                      <header>
+                        <strong>版本说明</strong>
+                        {releaseDate && (
+                          <span>{new Date(releaseDate).toLocaleDateString('zh-CN')}</span>
                         )}
-                      </p>
+                      </header>
+                      <div className="update-release-content">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          skipHtml
+                          components={{
+                            a: ({ href, children }) => (
+                              <a
+                                href={href}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  if (href) void openReleaseLink(href);
+                                }}
+                              >
+                                {children}
+                                <ExternalLink size={10} aria-hidden="true" />
+                              </a>
+                            ),
+                            img: ({ alt }) => (
+                              <span className="update-markdown-image">
+                                {alt ? `图片：${alt}` : '图片已隐藏'}
+                              </span>
+                            )
+                          }}
+                        >
+                          {releaseNotes}
+                        </ReactMarkdown>
+                      </div>
                     </div>
-                  )}
 
-                  {status === 'downloaded' && (
-                    <div className="update-ready">
-                      <CheckCircle2 size={18} />
-                      更新包已下载并完成签名校验。安装时应用将自动重启。
+                    {status === 'downloading' && (
+                      <div className="update-progress">
+                        <div>
+                          <span style={{ width: `${progress}%` }} />
+                        </div>
+                        <p>
+                          <span>
+                            {downloadAttempt > 1
+                              ? `连接不稳定，正在重试（${downloadAttempt}/${MAX_REQUEST_ATTEMPTS}）`
+                              : totalBytes
+                                ? `正在下载并校验 ${progress}%`
+                                : '正在准备更新包'}
+                          </span>
+                          {totalBytes > 0 && (
+                            <span>
+                              {(downloadedBytes / 1024 / 1024).toFixed(1)} /{' '}
+                              {(totalBytes / 1024 / 1024).toFixed(1)} MB
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    )}
+
+                    {status === 'downloaded' && (
+                      <div className="update-ready">
+                        <CheckCircle2 size={18} />
+                        更新包已下载并完成签名校验。安装时应用将自动重启。
+                      </div>
+                    )}
+
+                    {status === 'installing' && (
+                      <div className="update-ready is-installing">
+                        <LoaderCircle size={18} className="spin" />
+                        正在安装更新，请勿关闭应用…
+                      </div>
+                    )}
+
+                    <div className="update-security-note">
+                      <ShieldCheck size={18} />
+                      <p>更新文件会自动校验，确保来源可信。</p>
                     </div>
-                  )}
+                  </>
+                )}
 
-                  {status === 'installing' && (
-                    <div className="update-ready is-installing">
-                      <LoaderCircle size={18} className="spin" />
-                      正在安装更新，请勿关闭应用…
-                    </div>
-                  )}
-
-                  <div className="update-security-note">
-                    <ShieldCheck size={18} />
-                    <p>更新文件会自动校验，确保来源可信。</p>
+                {status === 'error' && (
+                  <div className="update-state is-error">
+                    <CloudDownload size={30} />
+                    <strong>{failure ? failureTitles[failure.stage] : '更新失败'}</strong>
+                    <span>{failure?.message || '请稍后重试。'}</span>
+                    {failure?.details && (
+                      <details className="update-error-details">
+                        <summary>查看技术详情</summary>
+                        <code>{failure.details}</code>
+                      </details>
+                    )}
                   </div>
-                </>
-              )}
-
-              {status === 'error' && (
-                <div className="update-state is-error">
-                  <CloudDownload size={30} />
-                  <strong>{failure ? failureTitles[failure.stage] : '更新失败'}</strong>
-                  <span>{failure?.message || '请稍后重试。'}</span>
-                  {failure?.details && (
-                    <details className="update-error-details">
-                      <summary>查看技术详情</summary>
-                      <code>{failure.details}</code>
-                    </details>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <footer className="modal-actions update-actions">
-              <span>{currentVersion ? `当前版本 ${currentVersion}` : '正式版通道'}</span>
-              <div>
-                {status === 'error' && failure?.stage !== 'restart' && (
-                  <button
-                    className="button button-secondary"
-                    type="button"
-                    onClick={openReleasePage}
-                  >
-                    <ExternalLink size={15} />
-                    手动下载
-                  </button>
-                )}
-                {status === 'available' && (
-                  <button
-                    className="button button-primary"
-                    type="button"
-                    onClick={() => void downloadUpdate()}
-                  >
-                    <Download size={16} />
-                    下载更新
-                  </button>
-                )}
-                {status === 'downloaded' && (
-                  <button
-                    className="button button-primary"
-                    type="button"
-                    onClick={() => void installUpdate()}
-                  >
-                    <Rocket size={16} />
-                    安装并重启
-                  </button>
-                )}
-                {status === 'error' && failure && (
-                  <button
-                    className="button button-primary"
-                    type="button"
-                    onClick={retryFailedOperation}
-                  >
-                    <RefreshCw size={15} />
-                    {retryLabels[failure.stage]}
-                  </button>
                 )}
               </div>
-            </footer>
-          </section>
+
+              <footer className="modal-actions update-actions">
+                <span>{currentVersion ? `当前版本 ${currentVersion}` : '正式版通道'}</span>
+                <div>
+                  {status === 'error' && failure?.stage !== 'restart' && (
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      onClick={openReleasePage}
+                    >
+                      <ExternalLink size={15} />
+                      手动下载
+                    </button>
+                  )}
+                  {status === 'available' && (
+                    <button
+                      className="button button-primary"
+                      type="button"
+                      onClick={() => void downloadUpdate()}
+                    >
+                      <Download size={16} />
+                      下载更新
+                    </button>
+                  )}
+                  {status === 'downloaded' && (
+                    <button
+                      className="button button-primary"
+                      type="button"
+                      onClick={() => void installUpdate()}
+                    >
+                      <Rocket size={16} />
+                      安装并重启
+                    </button>
+                  )}
+                  {status === 'error' && failure && (
+                    <button
+                      className="button button-primary"
+                      type="button"
+                      onClick={retryFailedOperation}
+                    >
+                      <RefreshCw size={15} />
+                      {retryLabels[failure.stage]}
+                    </button>
+                  )}
+                </div>
+              </footer>
+            </section>
           </div>,
           document.body
         )}

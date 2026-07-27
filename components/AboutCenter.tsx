@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  Code2,
-  ExternalLink,
-  Info,
-  MonitorCog,
-  ShieldCheck,
-  Sparkles,
-  X
-} from 'lucide-react';
+import { Code2, ExternalLink, Info, MonitorCog, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { openExternalUrl } from '@/lib/api';

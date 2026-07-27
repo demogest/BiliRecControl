@@ -7,7 +7,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "format": "prettier --write . --ignore-unknown && cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "format:check": "prettier --check . --ignore-unknown && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
+    "lint": "npm run format:check && npm run lint:rust",
+    "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings",
     "changelog": "node scripts/generate-changelog.mjs --auto-from --to HEAD --version main --repository demogest/BiliRecControl --strict",
     "changelog:check": "node scripts/generate-changelog.mjs --auto-from --to HEAD --strict --check",
     "test:updater": "node --test scripts/lib/updater-manifest.test.mjs",
@@ -15,7 +18,7 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build --no-sign",
-    "check": "npm run build && npm run test:updater && npm run test:rust && cargo check --manifest-path src-tauri/Cargo.toml"
+    "check": "npm run format:check && npm run changelog:check && npm run build && npm run test:updater && npm run test:rust && npm run lint:rust"
   },
   "engines": {
     "node": ">=20"
@@ -38,6 +41,7 @@
     "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "prettier": "^3.9.6",
     "typescript": "5.9.3"
   },
   "overrides": {

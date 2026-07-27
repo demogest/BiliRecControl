@@ -34,15 +34,7 @@ import {
   X,
   Zap
 } from 'lucide-react';
-import {
-  FormEvent,
-  ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react';
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { bilirecRequest, openLiveRoom } from '@/lib/api';
 import AboutCenter from '@/components/AboutCenter';
 import ConfigurationCenter from '@/components/ConfigurationCenter';
@@ -432,16 +424,13 @@ export default function Dashboard() {
     return () => document.removeEventListener('contextmenu', disableContextMenu);
   }, []);
 
-  const pushToast = useCallback(
-    (message: string, tone: ToastItem['tone'] = 'info') => {
-      const id = ++toastSequence.current;
-      setToasts((items) => [...items, { id, message, tone }]);
-      window.setTimeout(() => {
-        setToasts((items) => items.filter((item) => item.id !== id));
-      }, 3600);
-    },
-    []
-  );
+  const pushToast = useCallback((message: string, tone: ToastItem['tone'] = 'info') => {
+    const id = ++toastSequence.current;
+    setToasts((items) => [...items, { id, message, tone }]);
+    window.setTimeout(() => {
+      setToasts((items) => items.filter((item) => item.id !== id));
+    }, 3600);
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -592,10 +581,7 @@ export default function Dashboard() {
       ),
     [logs]
   );
-  const parsedNewRoomId = useMemo(
-    () => parseBilibiliRoomId(newRoomInput),
-    [newRoomInput]
-  );
+  const parsedNewRoomId = useMemo(() => parseBilibiliRoomId(newRoomInput), [newRoomInput]);
 
   const persistSettings = (connection: ConnectionSettings) => {
     localStorage.setItem(
@@ -644,10 +630,7 @@ export default function Dashboard() {
     pushToast('已清除保存的登录信息', 'info');
   };
 
-  const runRoomAction = async (
-    room: Room,
-    action: 'start' | 'stop' | 'split' | 'refresh'
-  ) => {
+  const runRoomAction = async (room: Room, action: 'start' | 'stop' | 'split' | 'refresh') => {
     setBusyRoomId(room.roomId);
     const labels = {
       start: '开始录制',
@@ -656,11 +639,7 @@ export default function Dashboard() {
       refresh: '刷新信息'
     };
     try {
-      await bilirecRequest<Room>(
-        settings,
-        `/api/room/${room.roomId}/${action}`,
-        'POST'
-      );
+      await bilirecRequest<Room>(settings, `/api/room/${room.roomId}/${action}`, 'POST');
       pushToast(`${room.name || room.roomId}：${labels[action]}成功`, 'success');
       await refreshData(settings, true);
     } catch (error) {
@@ -670,14 +649,11 @@ export default function Dashboard() {
     }
   };
 
-  const requestRoomAction = (
-    room: Room,
-    action: 'start' | 'stop' | 'split' | 'refresh'
-  ) => {
+  const requestRoomAction = (room: Room, action: 'start' | 'stop' | 'split' | 'refresh') => {
     if (action === 'stop') {
       setConfirmState({
         title: '停止当前录制？',
-      message: `将停止「${room.name || room.roomId}」的本次录制。已有文件会保留。`,
+        message: `将停止「${room.name || room.roomId}」的本次录制。已有文件会保留。`,
         actionLabel: '停止录制',
         danger: true,
         run: () => runRoomAction(room, action)
@@ -791,7 +767,9 @@ export default function Dashboard() {
   if (!hydrated) {
     return (
       <div className="boot-screen">
-        <div className="boot-mark"><span /></div>
+        <div className="boot-mark">
+          <span />
+        </div>
         <p>正在启动</p>
       </div>
     );
@@ -824,9 +802,7 @@ export default function Dashboard() {
             {connected ? '服务正常' : '等待连接'}
           </div>
           <div className="clock">
-            <strong>
-              {clock?.toLocaleTimeString('zh-CN', { hour12: false }) || '--:--:--'}
-            </strong>
+            <strong>{clock?.toLocaleTimeString('zh-CN', { hour12: false }) || '--:--:--'}</strong>
             <span>
               {clock?.toLocaleDateString('zh-CN', {
                 month: '2-digit',
@@ -1005,7 +981,9 @@ export default function Dashboard() {
                 <span className="section-kicker">ROOM MATRIX</span>
                 <div className="title-line">
                   <h2>房间矩阵</h2>
-                  <span>{visibleRooms.length} / {rooms.length}</span>
+                  <span>
+                    {visibleRooms.length} / {rooms.length}
+                  </span>
                 </div>
               </div>
               <div className="panel-tools">
@@ -1068,9 +1046,7 @@ export default function Dashboard() {
                   </div>
                   <h3>{connected ? '没有匹配的房间' : '等待连接录播姬'}</h3>
                   <p>
-                    {connected
-                      ? '试试其他筛选条件，或添加直播间'
-                      : '完成连接设置后即可开始使用'}
+                    {connected ? '试试其他筛选条件，或添加直播间' : '完成连接设置后即可开始使用'}
                   </p>
                   {!connected && (
                     <button className="button button-primary" type="button" onClick={openSettings}>
@@ -1112,12 +1088,11 @@ export default function Dashboard() {
 
               <div className="log-list">
                 {logs.length ? (
-                  [...logs].reverse().map((log, index) => (
-                    <LogRow
-                      key={`${String(log['@t'] || '')}-${index}`}
-                      log={log}
-                    />
-                  ))
+                  [...logs]
+                    .reverse()
+                    .map((log, index) => (
+                      <LogRow key={`${String(log['@t'] || '')}-${index}`} log={log} />
+                    ))
                 ) : (
                   <div className="log-empty">
                     <SquareActivity size={30} />
@@ -1319,11 +1294,7 @@ export default function Dashboard() {
                 <span>房间号或直播间 URL</span>
                 <div
                   className={`input-shell room-address-input ${
-                    newRoomInput.trim()
-                      ? parsedNewRoomId
-                        ? 'is-valid'
-                        : 'is-invalid'
-                      : ''
+                    newRoomInput.trim() ? (parsedNewRoomId ? 'is-valid' : 'is-invalid') : ''
                   }`}
                 >
                   <Radio size={17} />
@@ -1348,7 +1319,7 @@ export default function Dashboard() {
                     ? `已识别房间号：${parsedNewRoomId}`
                     : newRoomInput.trim()
                       ? '未识别到有效房间号，请检查链接格式'
-                       : '粘贴直播间链接即可自动识别房间号'}
+                      : '粘贴直播间链接即可自动识别房间号'}
                 </small>
               </label>
               <label className="switch-row">
@@ -1365,7 +1336,11 @@ export default function Dashboard() {
               </label>
             </div>
             <footer className="modal-actions">
-              <button className="button button-secondary" type="button" onClick={() => setAddRoomOpen(false)}>
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => setAddRoomOpen(false)}
+              >
                 取消
               </button>
               <button

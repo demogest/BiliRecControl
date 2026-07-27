@@ -585,26 +585,19 @@ export default function ConfigurationCenter({
     () => rooms.find((room) => room.roomId === selectedRoomId) || null,
     [rooms, selectedRoomId]
   );
-  const roomIdsKey = useMemo(
-    () => rooms.map((room) => room.roomId).join(','),
-    [rooms]
-  );
+  const roomIdsKey = useMemo(() => rooms.map((room) => room.roomId).join(','), [rooms]);
 
   const globalDirty = useMemo(
     () =>
       Boolean(
-        globalConfig &&
-          globalDraft &&
-          JSON.stringify(globalConfig) !== JSON.stringify(globalDraft)
+        globalConfig && globalDraft && JSON.stringify(globalConfig) !== JSON.stringify(globalDraft)
       ),
     [globalConfig, globalDraft]
   );
 
   const roomDirty = useMemo(
     () =>
-      Boolean(
-        roomConfig && roomDraft && JSON.stringify(roomConfig) !== JSON.stringify(roomDraft)
-      ),
+      Boolean(roomConfig && roomDraft && JSON.stringify(roomConfig) !== JSON.stringify(roomDraft)),
     [roomConfig, roomDraft]
   );
 
@@ -636,9 +629,7 @@ export default function ConfigurationCenter({
       setDefaultConfig(defaults);
       setGlobalConfig(globals);
       setGlobalDraft(copyValue(globals));
-      const templateField = FIELDS.find(
-        (field) => field.key === 'optionalFileNameRecordTemplate'
-      );
+      const templateField = FIELDS.find((field) => field.key === 'optionalFileNameRecordTemplate');
       if (templateField) {
         const optional = optionalFrom(globals, templateField.key);
         const initialTemplate = optional?.hasValue
@@ -702,10 +693,7 @@ export default function ConfigurationCenter({
     void loadRoom(selectedRoom);
   }, [loadRoom, open, selectedRoom?.objectId]);
 
-  const setGlobalOptional = (
-    field: FieldDescriptor,
-    patch: Partial<OptionalConfigValue>
-  ) => {
+  const setGlobalOptional = (field: FieldDescriptor, patch: Partial<OptionalConfigValue>) => {
     setGlobalDraft((current) => {
       if (!current) return current;
       const existing = optionalFrom(current, field.key) || {
@@ -719,10 +707,7 @@ export default function ConfigurationCenter({
     });
   };
 
-  const setRoomOptional = (
-    field: FieldDescriptor,
-    patch: Partial<OptionalConfigValue>
-  ) => {
+  const setRoomOptional = (field: FieldDescriptor, patch: Partial<OptionalConfigValue>) => {
     setRoomDraft((current) => {
       if (!current) return current;
       const existing = optionalFrom(current, field.key) || {
@@ -736,16 +721,12 @@ export default function ConfigurationCenter({
     });
   };
 
-  const enableOverride = (
-    scope: 'global' | 'room',
-    field: FieldDescriptor,
-    enabled: boolean
-  ) => {
+  const enableOverride = (scope: 'global' | 'room', field: FieldDescriptor, enabled: boolean) => {
     const config = scope === 'global' ? globalDraft : roomDraft;
     const existing = optionalFrom(config, field.key);
     const fallback =
       scope === 'global'
-        ? defaultConfig?.[field.defaultKey] ?? null
+        ? (defaultConfig?.[field.defaultKey] ?? null)
         : getGlobalEffective(field, globalConfig);
     const patch: Partial<OptionalConfigValue> = {
       hasValue: enabled,
@@ -795,8 +776,7 @@ export default function ConfigurationCenter({
     const config = scope === 'global' ? globalDraft : roomDraft;
     const optional = optionalFrom(config, field.key);
     const overridden = Boolean(optional?.hasValue);
-    const effective =
-      scope === 'global' ? getGlobalEffective(field) : getRoomEffective(field);
+    const effective = scope === 'global' ? getGlobalEffective(field) : getRoomEffective(field);
     const value = overridden ? optional?.value : effective;
 
     return (
@@ -864,11 +844,7 @@ export default function ConfigurationCenter({
             <input
               className="config-input"
               type={
-                field.kind === 'number'
-                  ? 'number'
-                  : field.kind === 'secret'
-                    ? 'password'
-                    : 'text'
+                field.kind === 'number' ? 'number' : field.kind === 'secret' ? 'password' : 'text'
               }
               min={field.kind === 'number' ? 0 : undefined}
               disabled={!overridden}
@@ -972,7 +948,10 @@ export default function ConfigurationCenter({
         { template, context }
       );
       setTemplateResult(result);
-      notify(result.status === 0 ? '路径预览已生成' : '请检查模板设置', result.status === 0 ? 'success' : 'info');
+      notify(
+        result.status === 0 ? '路径预览已生成' : '请检查模板设置',
+        result.status === 0 ? 'success' : 'info'
+      );
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error), 'error');
     } finally {
@@ -1003,7 +982,9 @@ export default function ConfigurationCenter({
       <section className="config-center" role="dialog" aria-modal="true" aria-label="配置中心">
         <header className="config-center-header">
           <div className="config-center-title">
-            <span className="config-center-icon"><Settings2 size={22} /></span>
+            <span className="config-center-icon">
+              <Settings2 size={22} />
+            </span>
             <div>
               <span className="section-kicker">RECORDING SETUP</span>
               <h2>录制设置</h2>
@@ -1024,26 +1005,47 @@ export default function ConfigurationCenter({
               <RefreshCw size={15} className={loading ? 'spin' : ''} />
               刷新
             </button>
-            <button className="modal-close" type="button" onClick={onClose} aria-label="关闭配置中心">
+            <button
+              className="modal-close"
+              type="button"
+              onClick={onClose}
+              aria-label="关闭配置中心"
+            >
               <X size={18} />
             </button>
           </div>
         </header>
 
         <nav className="config-tabs">
-          <button className={tab === 'quick' ? 'active' : ''} type="button" onClick={() => setTab('quick')}>
+          <button
+            className={tab === 'quick' ? 'active' : ''}
+            type="button"
+            onClick={() => setTab('quick')}
+          >
             <WandSparkles size={16} />
             快捷方案
           </button>
-          <button className={tab === 'global' ? 'active' : ''} type="button" onClick={() => setTab('global')}>
+          <button
+            className={tab === 'global' ? 'active' : ''}
+            type="button"
+            onClick={() => setTab('global')}
+          >
             <SlidersHorizontal size={16} />
             详细设置
           </button>
-          <button className={tab === 'room' ? 'active' : ''} type="button" onClick={() => setTab('room')}>
+          <button
+            className={tab === 'room' ? 'active' : ''}
+            type="button"
+            onClick={() => setTab('room')}
+          >
             <Radio size={16} />
             房间设置
           </button>
-          <button className={tab === 'filename' ? 'active' : ''} type="button" onClick={() => setTab('filename')}>
+          <button
+            className={tab === 'filename' ? 'active' : ''}
+            type="button"
+            onClick={() => setTab('filename')}
+          >
             <FileCode2 size={16} />
             文件名工具
           </button>
@@ -1095,7 +1097,9 @@ export default function ConfigurationCenter({
                     const PresetIcon = preset.icon;
                     return (
                       <button
-                        className={index === 0 ? 'workflow-preset is-recommended' : 'workflow-preset'}
+                        className={
+                          index === 0 ? 'workflow-preset is-recommended' : 'workflow-preset'
+                        }
                         key={preset.id}
                         type="button"
                         onClick={() =>
@@ -1105,7 +1109,9 @@ export default function ConfigurationCenter({
                           )
                         }
                       >
-                        <span className="preset-icon"><PresetIcon size={20} /></span>
+                        <span className="preset-icon">
+                          <PresetIcon size={20} />
+                        </span>
                         <span className="preset-copy">
                           <strong>{preset.label}</strong>
                           <small>{preset.description}</small>
@@ -1126,7 +1132,11 @@ export default function ConfigurationCenter({
                       <p>按优先顺序尝试可用画质。</p>
                     </div>
                   </div>
-                  <button className="quick-text-link" type="button" onClick={() => setTab('global')}>
+                  <button
+                    className="quick-text-link"
+                    type="button"
+                    onClick={() => setTab('global')}
+                  >
                     查看详细参数
                   </button>
                 </header>
@@ -1154,9 +1164,7 @@ export default function ConfigurationCenter({
                 </div>
                 <div className="inline-guide quality-guide">
                   <Info size={17} />
-                  <p>
-                    已保留原画作为兜底，避免开播初期漏录。
-                  </p>
+                  <p>已保留原画作为兜底，避免开播初期漏录。</p>
                 </div>
               </section>
 
@@ -1242,9 +1250,7 @@ export default function ConfigurationCenter({
 
               <div className="config-notice">
                 <ShieldCheck size={19} />
-                <p>
-                  修改将在保存后生效。敏感信息会隐藏显示。
-                </p>
+                <p>修改将在保存后生效。敏感信息会隐藏显示。</p>
               </div>
 
               <section className="detail-quality-shortcuts">
@@ -1276,7 +1282,8 @@ export default function ConfigurationCenter({
 
               {GROUPS.filter(
                 (group) =>
-                  showAdvanced || !(['network', 'timing', 'desktop'] as const).includes(
+                  showAdvanced ||
+                  !(['network', 'timing', 'desktop'] as const).includes(
                     group.key as 'network' | 'timing' | 'desktop'
                   )
               ).map((group) => {
@@ -1344,7 +1351,13 @@ export default function ConfigurationCenter({
                     <article>
                       <Video size={18} />
                       <span>房间状态</span>
-                      <strong>{roomDetail?.recording ? '录制中' : roomDetail?.streaming ? '直播中' : '离线'}</strong>
+                      <strong>
+                        {roomDetail?.recording
+                          ? '录制中'
+                          : roomDetail?.streaming
+                            ? '直播中'
+                            : '离线'}
+                      </strong>
                     </article>
                     <article>
                       <Clock3 size={18} />
@@ -1547,12 +1560,24 @@ export default function ConfigurationCenter({
                     </button>
                   </div>
                   <div className="template-variable-guide">
-                    <span><code>{'{{ name }}'}</code> 主播名</span>
-                    <span><code>{'{{ title }}'}</code> 标题</span>
-                    <span><code>{'{{ roomId }}'}</code> 房间号</span>
-                    <span><code>{'{{ areaParent }}'}</code> 主分区</span>
-                    <span><code>{'{{ qn | format_qn }}'}</code> 画质名</span>
-                    <span><code>{'{{ partIndex }}'}</code> 分段序号</span>
+                    <span>
+                      <code>{'{{ name }}'}</code> 主播名
+                    </span>
+                    <span>
+                      <code>{'{{ title }}'}</code> 标题
+                    </span>
+                    <span>
+                      <code>{'{{ roomId }}'}</code> 房间号
+                    </span>
+                    <span>
+                      <code>{'{{ areaParent }}'}</code> 主分区
+                    </span>
+                    <span>
+                      <code>{'{{ qn | format_qn }}'}</code> 画质名
+                    </span>
+                    <span>
+                      <code>{'{{ partIndex }}'}</code> 分段序号
+                    </span>
                   </div>
                 </section>
 
@@ -1561,15 +1586,21 @@ export default function ConfigurationCenter({
                     <FileCode2 size={20} />
                     <div>
                       <strong>生成结果</strong>
-                       <span>使用当前房间信息预览</span>
+                      <span>使用当前房间信息预览</span>
                     </div>
                   </header>
                   {templateResult ? (
                     <>
                       <div className={`template-status status-${templateResult.status}`}>
-                        {templateResult.status === 0 ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+                        {templateResult.status === 0 ? (
+                          <CheckCircle2 size={18} />
+                        ) : (
+                          <AlertTriangle size={18} />
+                        )}
                         <span>
-                          {templateResult.status === 0 ? '模板有效' : `状态码 ${templateResult.status}`}
+                          {templateResult.status === 0
+                            ? '模板有效'
+                            : `状态码 ${templateResult.status}`}
                         </span>
                       </div>
                       {templateResult.errorMessage && (
@@ -1584,7 +1615,11 @@ export default function ConfigurationCenter({
                         <code>{templateResult.fullPath || '—'}</code>
                       </div>
                       {(templateResult.relativePath || templateResult.fullPath) && (
-                        <button className="button button-secondary" type="button" onClick={() => void copyGeneratedPath()}>
+                        <button
+                          className="button button-secondary"
+                          type="button"
+                          onClick={() => void copyGeneratedPath()}
+                        >
                           {copied ? <Check size={15} /> : <Copy size={15} />}
                           {copied ? '已复制' : '复制生成路径'}
                         </button>
@@ -1613,8 +1648,12 @@ export default function ConfigurationCenter({
         </div>
 
         <footer className="config-center-footer">
-          <span><Network size={14} /> 设置保存在录播姬中</span>
-          <span><Activity size={14} /> 连接状态正常</span>
+          <span>
+            <Network size={14} /> 设置保存在录播姬中
+          </span>
+          <span>
+            <Activity size={14} /> 连接状态正常
+          </span>
         </footer>
       </section>
     </div>

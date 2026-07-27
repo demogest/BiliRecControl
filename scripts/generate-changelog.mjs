@@ -1,15 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 
-const categoryOrder = [
-  'breaking',
-  'feat',
-  'fix',
-  'perf',
-  'refactor',
-  'docs',
-  'maintenance'
-];
+const categoryOrder = ['breaking', 'feat', 'fix', 'perf', 'refactor', 'docs', 'maintenance'];
 
 const categoryLabels = {
   breaking: '⚠️ 破坏性变更',
@@ -226,7 +218,10 @@ if (repository) {
   const comparisonUrl = from
     ? `https://github.com/${repository}/compare/${from}...${version}`
     : `https://github.com/${repository}/commits/${version}`;
-  lines.push(`**完整变更记录：** [${from ? `${from} → ${version}` : version}](${comparisonUrl})`, '');
+  lines.push(
+    `**完整变更记录：** [${from ? `${from} → ${version}` : version}](${comparisonUrl})`,
+    ''
+  );
 }
 
 const authors = [...new Set(commits.map((commit) => commit.author).filter(Boolean))];
