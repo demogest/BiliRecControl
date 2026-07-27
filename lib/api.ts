@@ -4,7 +4,9 @@ import type {
   HistoryOverview,
   MpvPlayResult,
   MpvStatus,
-  RoomAvatarAsset
+  NativeUpdateMetadata,
+  RoomAvatarAsset,
+  UpdateEnvironment
 } from './types';
 
 type TauriApiResponse<T> = {
@@ -72,6 +74,14 @@ export function openLiveRoom(roomId: number) {
 
 export function openExternalUrl(url: string) {
   return invoke<void>('open_external_url', { url });
+}
+
+export function getUpdateEnvironment() {
+  return invoke<UpdateEnvironment>('get_update_environment');
+}
+
+export function checkPreviewUpdate(timeout: number) {
+  return invoke<NativeUpdateMetadata | null>('check_preview_update', { timeout });
 }
 
 export function playRecordingWithMpv(

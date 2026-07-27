@@ -5,6 +5,7 @@ import {
   CloudDownload,
   Download,
   ExternalLink,
+  FlaskConical,
   LoaderCircle,
   RefreshCw,
   Rocket,
@@ -16,8 +17,9 @@ import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { DownloadEvent, Update } from '@tauri-apps/plugin-updater';
-import { openExternalUrl } from '@/lib/api';
-import type { ToastItem } from '@/lib/types';
+import { checkPreviewUpdate, getUpdateEnvironment, openExternalUrl } from '@/lib/api';
+import { updateChannelLabel, type UpdateChannel } from '@/lib/update-channel';
+import type { ToastItem, UpdateEnvironment } from '@/lib/types';
 
 type UpdateStatus =
   | 'idle'
@@ -38,10 +40,13 @@ type UpdateFailure = {
 };
 
 type Props = {
+  channel: UpdateChannel;
+  onChannelChange: (channel: UpdateChannel) => void;
   notify: (message: string, tone?: ToastItem['tone']) => void;
 };
 
 const RELEASES_URL = 'https://github.com/demogest/BiliRecControl/releases/latest';
+const PREVIEW_BUILDS_URL = 'https://github.com/demogest/BiliRecControl/releases';
 const CHECK_TIMEOUT_MS = 15_000;
 const DOWNLOAD_TIMEOUT_MS = 30 * 60_000;
 const MAX_REQUEST_ATTEMPTS = 2;
@@ -133,7 +138,7 @@ function wait(milliseconds: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
-export default function UpdateCenter({ notify }: Props) {
+export default function UpdateCenter({ channel, onChannelChange, notify }: Props) {
   const [portalReady, setPortalReady] = useState(false);
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<UpdateStatus>('idle');
@@ -145,6 +150,8 @@ export default function UpdateCenter({ notify }: Props) {
   const [downloadedBytes, setDownloadedBytes] = useState(0);
   const [totalBytes, setTotalBytes] = useState(0);
   const [downloadAttempt, setDownloadAttempt] = useState(1);
+  const [environment, setEnvironment] = useState<UpdateEnvironment | null>(null);
+  const [channelSwitching, setChannelSwitching] = useState(false);
   const updateRef = useRef<Update | null>(null);
   const downloadedRef = useRef(false);
   const disposedRef = useRef(false);
@@ -152,28 +159,78 @@ export default function UpdateCenter({ notify }: Props) {
   const updateActionRef = useRef<Promise<void> | null>(null);
   const automaticCheckTimer = useRef<number | null>(null);
   const checkPromise = useRef<Promise<void> | null>(null);
+  const channelRef = useRef<UpdateChannel>(channel);
+  const checkGenerationRef = useRef(0);
+  const automaticCheckHandledRef = useRef(false);
+  const channelSwitchingRef = useRef(false);
 
   useEffect(() => {
     setPortalReady(true);
   }, []);
 
   useEffect(() => {
-    if (!runningInTauri()) return;
+    channelRef.current = channel;
+  }, [channel]);
+
+  useEffect(() => {
+    if (!runningInTauri()) {
+      setEnvironment({
+        targetTriple: 'browser',
+        updaterTarget: 'unknown',
+        bundleType: 'unknown',
+        platformLabel: '浏览器预览',
+        previewSupported: false,
+        previewUnsupportedReason: '请在已安装的桌面应用中使用测试版更新。'
+      });
+      return;
+    }
     let cancelled = false;
-    void import('@tauri-apps/api/app')
-      .then(({ getVersion }) => getVersion())
-      .then((version) => {
-        if (!cancelled) setCurrentVersion(version);
+    void Promise.all([
+      import('@tauri-apps/api/app').then(({ getVersion }) => getVersion()),
+      getUpdateEnvironment()
+    ])
+      .then(([version, nextEnvironment]) => {
+        if (cancelled) return;
+        setCurrentVersion(version);
+        setEnvironment(nextEnvironment);
+        if (!nextEnvironment.previewSupported && channelRef.current === 'preview') {
+          channelRef.current = 'stable';
+          onChannelChange('stable');
+          notify('当前平台不支持测试版更新，已切换到稳定版', 'info');
+        }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (cancelled) return;
+        setEnvironment({
+          targetTriple: 'unknown',
+          updaterTarget: 'unknown',
+          bundleType: 'unknown',
+          platformLabel: '未知平台',
+          previewSupported: false,
+          previewUnsupportedReason: '无法识别当前平台，为安全起见仅允许稳定版更新。'
+        });
+        if (channelRef.current === 'preview') {
+          channelRef.current = 'stable';
+          onChannelChange('stable');
+        }
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [notify, onChannelChange]);
 
   const checkForUpdates = useCallback(
     async (silent = false) => {
-      if (!silent) manualCheckRequestedRef.current = true;
+      if (updateActionRef.current) {
+        if (!silent) setOpen(true);
+        return;
+      }
+      if (!silent) {
+        manualCheckRequestedRef.current = true;
+        automaticCheckHandledRef.current = true;
+      }
+      const requestedChannel = channelRef.current;
+      const requestGeneration = checkGenerationRef.current;
 
       if (!silent && automaticCheckTimer.current !== null) {
         window.clearTimeout(automaticCheckTimer.current);
@@ -205,20 +262,35 @@ export default function UpdateCenter({ notify }: Props) {
         if (!silent) setOpen(true);
 
         try {
-          const { check } = await import('@tauri-apps/plugin-updater');
+          const updaterModule = await import('@tauri-apps/plugin-updater');
           let update: Update | null = null;
           for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt += 1) {
             try {
-              update = await check({ timeout: CHECK_TIMEOUT_MS });
+              if (requestedChannel === 'preview') {
+                const metadata = await checkPreviewUpdate(CHECK_TIMEOUT_MS);
+                update = metadata ? new updaterModule.Update(metadata) : null;
+              } else {
+                update = await updaterModule.check({ timeout: CHECK_TIMEOUT_MS });
+              }
               break;
             } catch (error) {
               const shouldRetry = attempt < MAX_REQUEST_ATTEMPTS && canRetryUpdaterRequest(error);
               if (!shouldRetry) throw error;
               await wait(900 * attempt);
-              if (disposedRef.current) return;
+              if (
+                disposedRef.current ||
+                requestGeneration !== checkGenerationRef.current ||
+                requestedChannel !== channelRef.current
+              ) {
+                return;
+              }
             }
           }
-          if (disposedRef.current) {
+          if (
+            disposedRef.current ||
+            requestGeneration !== checkGenerationRef.current ||
+            requestedChannel !== channelRef.current
+          ) {
             if (update) await update.close().catch(() => undefined);
             return;
           }
@@ -231,7 +303,7 @@ export default function UpdateCenter({ notify }: Props) {
             downloadedRef.current = false;
             setStatus('current');
             if (manualCheckRequestedRef.current) {
-              notify('当前已经是最新版本', 'success');
+              notify(`${updateChannelLabel(requestedChannel)}通道暂无可用更新`, 'success');
             }
             return;
           }
@@ -252,9 +324,15 @@ export default function UpdateCenter({ notify }: Props) {
           setDownloadedBytes(0);
           setTotalBytes(0);
           setStatus('available');
-          notify(`发现新版本 ${update.version}`, 'info');
+          notify(`发现${updateChannelLabel(requestedChannel)} ${update.version}`, 'info');
         } catch (error) {
-          if (disposedRef.current) return;
+          if (
+            disposedRef.current ||
+            requestGeneration !== checkGenerationRef.current ||
+            requestedChannel !== channelRef.current
+          ) {
+            return;
+          }
           if (!manualCheckRequestedRef.current) {
             setStatus('idle');
             return;
@@ -280,9 +358,13 @@ export default function UpdateCenter({ notify }: Props) {
 
   useEffect(() => {
     if (!runningInTauri()) return;
+    if (channel === 'preview' && !environment) return;
+    if (automaticCheckHandledRef.current) return;
 
     automaticCheckTimer.current = window.setTimeout(() => {
       automaticCheckTimer.current = null;
+      automaticCheckHandledRef.current = true;
+      if (updateActionRef.current) return;
       void checkForUpdates(true);
     }, 4_000);
 
@@ -292,12 +374,13 @@ export default function UpdateCenter({ notify }: Props) {
         automaticCheckTimer.current = null;
       }
     };
-  }, [checkForUpdates]);
+  }, [channel, checkForUpdates, environment]);
 
   useEffect(() => {
     disposedRef.current = false;
     return () => {
       disposedRef.current = true;
+      checkGenerationRef.current += 1;
       const update = updateRef.current;
       const pendingAction = updateActionRef.current;
       updateRef.current = null;
@@ -315,6 +398,73 @@ export default function UpdateCenter({ notify }: Props) {
   }, []);
 
   const modalLocked = status === 'installing';
+  const channelSwitchLocked =
+    channelSwitching ||
+    status === 'checking' ||
+    status === 'downloading' ||
+    status === 'installing';
+
+  const selectUpdateChannel = useCallback(
+    async (nextChannel: UpdateChannel) => {
+      if (
+        nextChannel === channelRef.current ||
+        channelSwitchLocked ||
+        channelSwitchingRef.current ||
+        updateActionRef.current
+      ) {
+        return;
+      }
+      if (nextChannel === 'preview' && !environment?.previewSupported) {
+        notify(environment?.previewUnsupportedReason || '当前平台不支持测试版更新。', 'error');
+        return;
+      }
+
+      channelSwitchingRef.current = true;
+      setChannelSwitching(true);
+      try {
+        automaticCheckHandledRef.current = true;
+        if (automaticCheckTimer.current !== null) {
+          window.clearTimeout(automaticCheckTimer.current);
+          automaticCheckTimer.current = null;
+        }
+
+        checkGenerationRef.current += 1;
+        channelRef.current = nextChannel;
+        onChannelChange(nextChannel);
+
+        const discardedDownload = downloadedRef.current;
+        const update = updateRef.current;
+        updateRef.current = null;
+        downloadedRef.current = false;
+        if (update) await update.close().catch(() => undefined);
+        setAvailableVersion('');
+        setReleaseDate('');
+        setReleaseNotes('');
+        setDownloadedBytes(0);
+        setTotalBytes(0);
+        setFailure(null);
+        setStatus('idle');
+        notify(
+          discardedDownload
+            ? `已放弃下载完成的更新并切换到${updateChannelLabel(nextChannel)}`
+            : `已切换到${updateChannelLabel(nextChannel)}通道`,
+          'info'
+        );
+        await checkForUpdates(false);
+      } finally {
+        channelSwitchingRef.current = false;
+        if (!disposedRef.current) setChannelSwitching(false);
+      }
+    },
+    [
+      channelSwitchLocked,
+      checkForUpdates,
+      environment?.previewSupported,
+      environment?.previewUnsupportedReason,
+      notify,
+      onChannelChange
+    ]
+  );
 
   const closeUpdateModal = useCallback(() => {
     if (!modalLocked) setOpen(false);
@@ -341,7 +491,7 @@ export default function UpdateCenter({ notify }: Props) {
   );
 
   const openReleasePage = useCallback(() => {
-    void openReleaseLink(RELEASES_URL);
+    void openReleaseLink(channelRef.current === 'preview' ? PREVIEW_BUILDS_URL : RELEASES_URL);
   }, [openReleaseLink]);
 
   useEffect(() => {
@@ -571,19 +721,87 @@ export default function UpdateCenter({ notify }: Props) {
               </header>
 
               <div className="modal-body update-modal-body">
+                <section className="update-channel-selector" aria-label="更新通道">
+                  <header>
+                    <div>
+                      <strong>更新通道</strong>
+                      <span>
+                        {environment
+                          ? `已识别 ${environment.platformLabel}${
+                              environment.bundleType === 'unknown'
+                                ? ''
+                                : ` · ${environment.bundleType.toUpperCase()}`
+                            }`
+                          : '正在识别客户端平台…'}
+                      </span>
+                    </div>
+                    <span className={`update-channel-badge is-${channel}`}>
+                      {updateChannelLabel(channel)}
+                    </span>
+                  </header>
+                  <div>
+                    <button
+                      className={channel === 'stable' ? 'is-active' : ''}
+                      type="button"
+                      disabled={channelSwitchLocked}
+                      aria-pressed={channel === 'stable'}
+                      onClick={() => void selectUpdateChannel('stable')}
+                    >
+                      <ShieldCheck size={16} />
+                      <span>
+                        <strong>稳定版</strong>
+                        <small>仅获取正式 Release</small>
+                      </span>
+                    </button>
+                    <button
+                      className={channel === 'preview' ? 'is-active is-preview' : 'is-preview'}
+                      type="button"
+                      disabled={channelSwitchLocked || !environment?.previewSupported}
+                      aria-pressed={channel === 'preview'}
+                      title={
+                        environment?.previewSupported
+                          ? '获取 main 最新成功 CI'
+                          : environment?.previewUnsupportedReason || '正在检测平台支持情况'
+                      }
+                      onClick={() => void selectUpdateChannel('preview')}
+                    >
+                      <FlaskConical size={16} />
+                      <span>
+                        <strong>测试版</strong>
+                        <small>
+                          {environment?.previewSupported
+                            ? '获取 main 最新成功 CI'
+                            : '当前平台不可用'}
+                        </small>
+                      </span>
+                    </button>
+                  </div>
+                  {environment && !environment.previewSupported && (
+                    <p>{environment.previewUnsupportedReason}</p>
+                  )}
+                </section>
+
                 {status === 'checking' && (
                   <div className="update-state">
                     <RefreshCw size={28} className="spin" />
                     <strong>正在检查新版本</strong>
-                    <span>正在连接更新服务…</span>
+                    <span>
+                      {channel === 'preview'
+                        ? '正在获取 main 最新成功 CI…'
+                        : '正在检查最新正式 Release…'}
+                    </span>
                   </div>
                 )}
 
                 {status === 'current' && (
                   <div className="update-state is-current">
                     <CheckCircle2 size={30} />
-                    <strong>当前已是最新版本</strong>
-                    <span>{currentVersion ? `BiliRec Control ${currentVersion}` : '无需更新'}</span>
+                    <strong>{updateChannelLabel(channel)}通道暂无可用更新</strong>
+                    <span>
+                      {currentVersion
+                        ? `BiliRec Control ${currentVersion} · ${environment?.platformLabel || ''}`
+                        : '无需更新'}
+                    </span>
                   </div>
                 )}
 
@@ -679,7 +897,11 @@ export default function UpdateCenter({ notify }: Props) {
 
                     <div className="update-security-note">
                       <ShieldCheck size={18} />
-                      <p>更新文件会自动校验，确保来源可信。</p>
+                      <p>
+                        {channel === 'preview'
+                          ? '测试包来自 main 最新成功 CI，并使用与稳定版相同的更新密钥校验。'
+                          : '稳定版仅从正式 Release 获取，更新文件会自动完成签名校验。'}
+                      </p>
                     </div>
                   </>
                 )}
@@ -700,7 +922,10 @@ export default function UpdateCenter({ notify }: Props) {
               </div>
 
               <footer className="modal-actions update-actions">
-                <span>{currentVersion ? `当前版本 ${currentVersion}` : '正式版通道'}</span>
+                <span>
+                  {updateChannelLabel(channel)}通道
+                  {currentVersion ? ` · 当前版本 ${currentVersion}` : ''}
+                </span>
                 <div>
                   {status === 'error' && failure?.stage !== 'restart' && (
                     <button
@@ -709,7 +934,7 @@ export default function UpdateCenter({ notify }: Props) {
                       onClick={openReleasePage}
                     >
                       <ExternalLink size={15} />
-                      手动下载
+                      {channel === 'preview' ? '查看测试构建' : '手动下载'}
                     </button>
                   )}
                   {status === 'available' && (

@@ -24,7 +24,7 @@
 - 房间独立设置：自动录制、录制模式、分段、弹幕、画质、封面和标题过滤
 - 房间详情：分别读取房间信息、录制统计和 IO 统计，并显示 objectId
 - 文件名模板工具：提供标准、按月、按分区和后期友好预设，并使用真实房间上下文预览路径
-- 应用内更新：自动或手动检查 GitHub Releases，显示版本说明与下载进度，签名验证通过后安装并重启
+- 应用内更新：可选择稳定版或测试版通道，显示版本说明与下载进度，签名验证通过后安装并重启
 
 ## 通讯边界
 
@@ -50,7 +50,7 @@ Rust 后端命令
 
 ## 下载与平台支持
 
-Pull Request 会自动执行格式化、Changelog、前端构建、测试和 Rust Clippy 检查。每次推送 `main` 在完整检查通过后，都会构建并上传 Windows x64、Linux x64 和 macOS Universal 三组临时 CI 包；也可在 GitHub Actions 中手动运行。带 `v` 前缀的版本标签仍会使用完整平台矩阵，自动发布带 Tauri 更新签名的正式 Release。
+Pull Request 会自动执行格式化、Changelog、前端构建、测试和 Rust Clippy 检查。每次推送 `main` 在完整检查通过后，都会构建 Windows x64（NSIS）、Linux x64（AppImage、DEB）和 macOS Universal 三组 CI 包，同时使用 Tauri 更新密钥签名并发布经过匿名下载验证的测试版。带 `v` 前缀的正式版本标签仍会使用完整平台矩阵，自动发布稳定 Release。
 
 | 系统    | 架构                           | 安装包             | 便携包       |
 | ------- | ------------------------------ | ------------------ | ------------ |
@@ -60,7 +60,7 @@ Pull Request 会自动执行格式化、Changelog、前端构建、测试和 Rus
 | macOS   | Intel x64、Apple Silicon ARM64 | APP、DMG           | APP ZIP      |
 | macOS   | Universal                      | APP、DMG           | APP ZIP      |
 
-CI 的临时产物保留 7 天；正式版本可从 [GitHub Releases](https://github.com/demogest/BiliRecControl/releases) 长期下载。便携包不等于完全不写本机数据，限制与运行要求见 [PORTABLE.md](PORTABLE.md)。
+Actions 中的临时产物保留 7 天；签名测试版保留 14 天（当前滚动通道指向的版本不会被清理），正式版本可从 [GitHub Releases](https://github.com/demogest/BiliRecControl/releases) 长期下载。便携包不等于完全不写本机数据，限制与运行要求见 [PORTABLE.md](PORTABLE.md)。
 
 Windows 和 macOS 的操作系统级可信代码签名需要购买相应开发者证书，目前 CI 生成的是未做系统证书签名的包，首次运行可能出现安全提示。应用内更新使用独立的 Tauri 签名机制，下载内容被篡改时客户端会拒绝安装。
 
@@ -119,15 +119,26 @@ npm run changelog
 
 ## 应用内更新
 
-桌面程序启动 4 秒后会静默检查稳定更新通道，也可点击顶栏的下载图标手动检查。发现新版本后，先由用户下载并完成签名校验，再由用户确认“安装并重启”，避免下载完成后立即打断当前操作。检查、下载、校验、安装和重启错误会分别提示；下载失败时也可直接前往 Release 页面手动安装。
+桌面程序启动 4 秒后会静默检查用户选择的更新通道，也可点击顶栏的下载图标手动检查。更新窗口提供两个持久化选项：
 
-更新源固定为：
+- 稳定版：只读取正式 Release，适合日常使用。
+- 测试版：读取 `main` 最新成功 CI 生成的签名测试包，版本采用下一补丁的 `beta.<run>.<attempt>` SemVer。
+
+测试版仅支持 Windows x64 的 NSIS 安装、Linux x64 的 AppImage/DEB 安装，以及 Intel/Apple Silicon 均可运行的 macOS Universal 包。客户端会在 Rust 原生层同时检查编译目标和当前安装格式；Windows ARM64、Linux ARM64、musl、Windows GNU、i686，以及 Windows MSI、Linux RPM 等没有兼容测试包的客户端无法选择或请求测试版，但仍可正常使用稳定版。
+
+发现新版本后，先由用户下载并完成签名校验，再由用户确认“安装并重启”，避免下载完成后立即打断当前操作。切换通道会释放旧更新资源并重新检查；下载或安装期间会锁定通道，避免混用不同来源。
+
+更新清单分别为：
 
 ```text
+稳定版
 https://github.com/demogest/BiliRecControl/releases/latest/download/latest.json
+
+测试版
+https://github.com/demogest/BiliRecControl/releases/download/ci-latest/latest.json
 ```
 
-Tauri 会校验更新元数据和安装包签名。私钥一旦丢失，现有客户端将无法验证以后使用新密钥发布的版本，因此必须另行做好安全备份，且不能提交到 Git。
+测试包不会直接使用需要登录且会过期的 GitHub Actions artifact；CI 会先将签名安装包发布为公开 prerelease，验证匿名下载后才更新滚动测试清单。稳定版和测试版都使用同一 Tauri 公钥校验，私钥一旦丢失，现有客户端将无法验证以后使用新密钥发布的版本，因此必须另行做好安全备份，且不能提交到 Git。
 
 如果已发布版本的 `latest.json` 出现元数据错误，可手动运行 [Repair updater manifest](.github/workflows/repair-updater-manifest.yml) 并填写版本标签。该工作流只会依据现有签名资产重建、替换和匿名验证更新清单，不会重新构建安装包；只有明确勾选时才会将该版本设为最新版本。
 

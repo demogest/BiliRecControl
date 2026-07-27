@@ -1,4 +1,4 @@
-const PACKAGE_TEMPLATES = [
+const STABLE_PACKAGE_TEMPLATES = [
   {
     name: (version) => `BiliRec.Control_${version}_x64-setup.exe`,
     platforms: ['windows-x86_64', 'windows-x86_64-nsis']
@@ -49,6 +49,25 @@ const PACKAGE_TEMPLATES = [
   }
 ];
 
+const PREVIEW_PACKAGE_TEMPLATES = [
+  {
+    name: (version) => `BiliRec.Control_${version}_x64-setup.exe`,
+    platforms: ['windows-x86_64', 'windows-x86_64-nsis']
+  },
+  {
+    name: (version) => `BiliRec.Control_${version}_amd64.AppImage`,
+    platforms: ['linux-x86_64', 'linux-x86_64-appimage']
+  },
+  {
+    name: (version) => `BiliRec.Control_${version}_amd64.deb`,
+    platforms: ['linux-x86_64-deb']
+  },
+  {
+    name: (version) => `BiliRec.Control_${version}_universal.app.tar.gz`,
+    platforms: ['darwin-x86_64', 'darwin-x86_64-app', 'darwin-aarch64', 'darwin-aarch64-app']
+  }
+];
+
 const SEMVER_PATTERN =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 
@@ -65,14 +84,28 @@ export function assertUpdaterReleaseTag(tag) {
 }
 
 export function updaterPackagesForVersion(version) {
+  return packagesFromTemplates(version, STABLE_PACKAGE_TEMPLATES);
+}
+
+export function previewUpdaterPackagesForVersion(version) {
+  return packagesFromTemplates(version, PREVIEW_PACKAGE_TEMPLATES);
+}
+
+function packagesFromTemplates(version, templates) {
   if (typeof version !== 'string' || !SEMVER_PATTERN.test(version)) {
     throw new Error(`Invalid updater version: ${version}`);
   }
 
-  return PACKAGE_TEMPLATES.map((entry) => ({
+  return templates.map((entry) => ({
     name: entry.name(version),
     platforms: [...entry.platforms]
   }));
+}
+
+export function updaterPackagesForChannel(version, channel = 'stable') {
+  if (channel === 'stable') return updaterPackagesForVersion(version);
+  if (channel === 'preview') return previewUpdaterPackagesForVersion(version);
+  throw new Error(`Invalid updater channel: ${channel}`);
 }
 
 export function publicReleaseAssetUrl(repository, tag, assetName) {
@@ -134,7 +167,7 @@ export function assertUploadedReleaseAsset(asset, context) {
   return assertPublicReleaseAssetUrl(asset.browser_download_url, context);
 }
 
-export function validateUpdaterManifest(manifest, { repository, tag }) {
+export function validateUpdaterManifest(manifest, { repository, tag, channel = 'stable' }) {
   assertRepository(repository);
   assertUpdaterReleaseTag(tag);
 
@@ -162,7 +195,7 @@ export function validateUpdaterManifest(manifest, { repository, tag }) {
     throw new Error('Updater manifest platforms must be an object.');
   }
 
-  const expectedEntries = updaterPackagesForVersion(expectedVersion).flatMap((entry) =>
+  const expectedEntries = updaterPackagesForChannel(expectedVersion, channel).flatMap((entry) =>
     entry.platforms.map((platform) => [platform, entry.name])
   );
   const expectedPlatforms = new Set(expectedEntries.map(([platform]) => platform));
@@ -202,8 +235,11 @@ export function validateUpdaterManifest(manifest, { repository, tag }) {
   };
 }
 
-export async function probeUpdaterPackageUrls(manifest, { repository, tag, timeout = 30_000 }) {
-  const summary = validateUpdaterManifest(manifest, { repository, tag });
+export async function probeUpdaterPackageUrls(
+  manifest,
+  { repository, tag, channel = 'stable', timeout = 30_000 }
+) {
+  const summary = validateUpdaterManifest(manifest, { repository, tag, channel });
 
   for (const url of summary.urls) {
     const controller = new AbortController();

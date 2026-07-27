@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import {
   assertUploadedReleaseAsset,
-  updaterPackagesForVersion,
+  updaterPackagesForChannel,
   validateUpdaterManifest
 } from './lib/updater-manifest.mjs';
 
@@ -45,6 +45,7 @@ const repository =
 const releaseId = typeof args['release-id'] === 'string' ? args['release-id'] : '';
 const tag = typeof args.tag === 'string' ? args.tag : process.env.GITHUB_REF_NAME || '';
 const outputPath = typeof args.output === 'string' ? args.output : '';
+const channel = typeof args.channel === 'string' ? args.channel : 'stable';
 const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
 
 if (!repository || !releaseId || !tag || !outputPath || !token) {
@@ -66,7 +67,7 @@ if (release.tag_name !== tag) {
   throw new Error(`Release ${releaseId} belongs to ${release.tag_name}, not ${tag}.`);
 }
 
-const packages = updaterPackagesForVersion(version);
+const packages = updaterPackagesForChannel(version, channel);
 
 const platforms = {};
 for (const entry of packages) {
@@ -111,8 +112,13 @@ for (const entry of packages) {
   }
 }
 
-if (Object.keys(platforms).length !== 19) {
-  throw new Error(`Expected 19 updater platform mappings, got ${Object.keys(platforms).length}.`);
+const expectedPlatformCount = packages.reduce((count, entry) => count + entry.platforms.length, 0);
+if (Object.keys(platforms).length !== expectedPlatformCount) {
+  throw new Error(
+    `Expected ${expectedPlatformCount} ${channel} updater platform mappings, got ${
+      Object.keys(platforms).length
+    }.`
+  );
 }
 
 const notes = typeof release.body === 'string' ? release.body.trim() : '';
@@ -127,7 +133,7 @@ const manifest = {
   platforms
 };
 
-validateUpdaterManifest(manifest, { repository, tag });
+validateUpdaterManifest(manifest, { repository, tag, channel });
 writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 process.stdout.write(
   `Generated ${outputPath} with ${Object.keys(platforms).length} signed platform mappings.\n`

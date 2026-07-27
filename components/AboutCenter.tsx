@@ -4,9 +4,11 @@ import { Code2, ExternalLink, Info, MonitorCog, ShieldCheck, Sparkles, X } from 
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { openExternalUrl } from '@/lib/api';
+import { updateChannelLabel, type UpdateChannel } from '@/lib/update-channel';
 import type { ToastItem } from '@/lib/types';
 
 type Props = {
+  updateChannel: UpdateChannel;
   notify: (message: string, tone?: ToastItem['tone']) => void;
 };
 
@@ -17,7 +19,7 @@ function runningInTauri() {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
-export default function AboutCenter({ notify }: Props) {
+export default function AboutCenter({ updateChannel, notify }: Props) {
   const [portalReady, setPortalReady] = useState(false);
   const [open, setOpen] = useState(false);
   const [appName, setAppName] = useState('BiliRec Control');
@@ -156,7 +158,7 @@ export default function AboutCenter({ notify }: Props) {
                 <section className="about-meta">
                   <div>
                     <span>更新通道</span>
-                    <strong>正式版</strong>
+                    <strong>{updateChannelLabel(updateChannel)}</strong>
                   </div>
                   <div>
                     <span>开源许可</span>

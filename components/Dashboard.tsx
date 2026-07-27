@@ -44,6 +44,11 @@ import UpdateCenter from '@/components/UpdateCenter';
 import { useRoomAvatars } from '@/lib/use-room-avatars';
 import { parseBilibiliRoomId } from '@/lib/room-input';
 import {
+  readStoredUpdateChannel,
+  storeUpdateChannel,
+  type UpdateChannel
+} from '@/lib/update-channel';
+import {
   finiteNumber,
   formatBytes,
   formatDuration,
@@ -414,6 +419,7 @@ export default function Dashboard() {
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [clock, setClock] = useState<Date | null>(null);
+  const [updateChannel, setUpdateChannel] = useState<UpdateChannel>('stable');
   const logCursor = useRef(0);
   const toastSequence = useRef(0);
   const connectionAttempted = useRef(false);
@@ -432,6 +438,11 @@ export default function Dashboard() {
     }, 3600);
   }, []);
 
+  const changeUpdateChannel = useCallback((channel: UpdateChannel) => {
+    setUpdateChannel(channel);
+    storeUpdateChannel(channel);
+  }, []);
+
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     let restored = DEFAULT_SETTINGS;
@@ -444,6 +455,7 @@ export default function Dashboard() {
     }
     setSettings(restored);
     setDraftSettings(restored);
+    setUpdateChannel(readStoredUpdateChannel());
     setSettingsOpen(!isConfigured(restored));
     setHydrated(true);
   }, []);
@@ -814,8 +826,12 @@ export default function Dashboard() {
           <button className="top-icon-button" type="button" onClick={toggleFullscreen} title="全屏">
             <Maximize2 size={18} />
           </button>
-          <UpdateCenter notify={pushToast} />
-          <AboutCenter notify={pushToast} />
+          <UpdateCenter
+            channel={updateChannel}
+            onChannelChange={changeUpdateChannel}
+            notify={pushToast}
+          />
+          <AboutCenter updateChannel={updateChannel} notify={pushToast} />
           <button className="connection-button" type="button" onClick={openSettings}>
             <span className={connected ? 'online' : ''} />
             <div>

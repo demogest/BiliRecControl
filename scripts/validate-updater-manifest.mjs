@@ -23,6 +23,7 @@ const input = typeof args.input === 'string' ? args.input : '';
 const repository =
   typeof args.repository === 'string' ? args.repository : process.env.GITHUB_REPOSITORY || '';
 const tag = typeof args.tag === 'string' ? args.tag : process.env.GITHUB_REF_NAME || '';
+const channel = typeof args.channel === 'string' ? args.channel : 'stable';
 
 if (!input || !repository || !tag) {
   throw new Error('Required: --input, --repository and --tag.');
@@ -30,8 +31,8 @@ if (!input || !repository || !tag) {
 
 const manifest = JSON.parse(readFileSync(input, 'utf8'));
 const summary = args.probe
-  ? await probeUpdaterPackageUrls(manifest, { repository, tag })
-  : validateUpdaterManifest(manifest, { repository, tag });
+  ? await probeUpdaterPackageUrls(manifest, { repository, tag, channel })
+  : validateUpdaterManifest(manifest, { repository, tag, channel });
 
 process.stdout.write(
   `Validated ${summary.platformCount} updater mappings for ${summary.uniqueAssetCount} public release assets${

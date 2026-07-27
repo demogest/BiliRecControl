@@ -1,4 +1,5 @@
 mod avatar_cache;
+mod update_channel;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use reqwest::{Client, Method, Url};
@@ -584,6 +585,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             bilirec_request,
             bilirec_history,
+            update_channel::check_preview_update,
+            update_channel::get_update_environment,
             load_room_avatars,
             mpv_status,
             open_live_room,

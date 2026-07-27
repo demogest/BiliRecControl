@@ -31,6 +31,7 @@ const url = typeof args.url === 'string' ? args.url : '';
 const repository =
   typeof args.repository === 'string' ? args.repository : process.env.GITHUB_REPOSITORY || '';
 const tag = typeof args.tag === 'string' ? args.tag : process.env.GITHUB_REF_NAME || '';
+const channel = typeof args.channel === 'string' ? args.channel : 'stable';
 const attempts = positiveInteger(args.attempts, 12);
 const retryDelay = positiveInteger(args['retry-delay'], 5_000);
 const timeout = positiveInteger(args.timeout, 30_000);
@@ -60,8 +61,8 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
 
     const manifest = await response.json();
     const summary = args.probe
-      ? await probeUpdaterPackageUrls(manifest, { repository, tag, timeout })
-      : validateUpdaterManifest(manifest, { repository, tag });
+      ? await probeUpdaterPackageUrls(manifest, { repository, tag, channel, timeout })
+      : validateUpdaterManifest(manifest, { repository, tag, channel });
     process.stdout.write(
       `Verified ${url}: ${summary.platformCount} mappings, ${summary.uniqueAssetCount} anonymous package downloads${
         args.probe ? ' probed' : ' declared'

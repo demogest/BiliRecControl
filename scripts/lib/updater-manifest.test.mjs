@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   assertUploadedReleaseAsset,
   assertUpdaterReleaseTag,
+  previewUpdaterPackagesForVersion,
   probeUpdaterPackageUrls,
   publicReleaseAssetUrl,
   updaterPackagesForVersion,
@@ -36,6 +37,72 @@ test('accepts the complete public updater manifest', () => {
   const summary = validateUpdaterManifest(validManifest(), { repository, tag });
   assert.equal(summary.platformCount, 19);
   assert.equal(summary.uniqueAssetCount, 12);
+});
+
+test('preview manifests expose only mainstream CI architectures', () => {
+  const previewTag = 'v1.4.10-beta.123.1';
+  const previewVersion = previewTag.slice(1);
+  const platforms = {};
+  for (const entry of previewUpdaterPackagesForVersion(previewVersion)) {
+    for (const platform of entry.platforms) {
+      platforms[platform] = {
+        signature: 'trusted-signature-'.repeat(8),
+        url: publicReleaseAssetUrl(repository, previewTag, entry.name)
+      };
+    }
+  }
+
+  const manifest = {
+    version: previewVersion,
+    notes: 'Preview updater validation fixture',
+    pub_date: '2026-07-27T00:00:00.000Z',
+    platforms
+  };
+  const summary = validateUpdaterManifest(manifest, {
+    repository,
+    tag: previewTag,
+    channel: 'preview'
+  });
+
+  assert.equal(summary.platformCount, 9);
+  assert.equal(summary.uniqueAssetCount, 4);
+  assert.ok('windows-x86_64' in platforms);
+  assert.ok('linux-x86_64' in platforms);
+  assert.ok('darwin-x86_64' in platforms);
+  assert.ok('darwin-aarch64' in platforms);
+  assert.ok(!('windows-x86_64-msi' in platforms));
+  assert.ok(!('linux-x86_64-rpm' in platforms));
+  assert.ok(!Object.keys(platforms).some((platform) => platform.includes('windows-aarch64')));
+  assert.ok(!Object.keys(platforms).some((platform) => platform.includes('linux-aarch64')));
+});
+
+test('preview validation rejects stable-only architecture mappings', () => {
+  const previewTag = 'v1.4.10-beta.124.1';
+  const previewVersion = previewTag.slice(1);
+  const platforms = {};
+  for (const entry of previewUpdaterPackagesForVersion(previewVersion)) {
+    for (const platform of entry.platforms) {
+      platforms[platform] = {
+        signature: 'trusted-signature-'.repeat(8),
+        url: publicReleaseAssetUrl(repository, previewTag, entry.name)
+      };
+    }
+  }
+  platforms['windows-aarch64'] = platforms['windows-x86_64'];
+
+  assert.throws(
+    () =>
+      validateUpdaterManifest(
+        {
+          version: previewVersion,
+          notes: 'Preview updater validation fixture',
+          pub_date: '2026-07-27T00:00:00.000Z',
+          platforms
+        },
+        { repository, tag: previewTag, channel: 'preview' }
+      ),
+    /unexpected: windows-aarch64/
+  );
 });
 
 test('rejects GitHub REST API asset URLs', () => {

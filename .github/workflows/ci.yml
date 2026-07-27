@@ -54,10 +54,115 @@ jobs:
       - name: Run complete checks
         run: npm run check
 
+  prepare-preview:
+    name: Prepare signed preview release
+    needs: checks
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.preview.outputs.version }}
+      tag: ${{ steps.preview.outputs.tag }}
+      release_id: ${{ steps.preview.outputs.release_id }}
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Calculate preview version and release notes
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_version="$(node -p "require('./package.json').version")"
+          version="$(
+            node scripts/preview-version.mjs \
+              --base "${base_version}" \
+              --run-number "${GITHUB_RUN_NUMBER}" \
+              --run-attempt "${GITHUB_RUN_ATTEMPT}"
+          )"
+          tag="v${version}"
+          notes_path="${RUNNER_TEMP}/preview-notes.md"
+
+          node scripts/generate-changelog.mjs \
+            --auto-from \
+            --to "${GITHUB_SHA}" \
+            --version "${tag}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --preview \
+            --strict \
+            --output "${notes_path}"
+
+          {
+            echo "version=${version}"
+            echo "tag=${tag}"
+            echo "notes_path=${notes_path}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Create isolated draft prerelease
+        id: preview
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_VERSION: ${{ steps.metadata.outputs.version }}
+          PREVIEW_TAG: ${{ steps.metadata.outputs.tag }}
+          NOTES_PATH: ${{ steps.metadata.outputs.notes_path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_id="$(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"${PREVIEW_TAG}\") | .id" \
+              | head -n 1
+          )"
+
+          if [[ -z "${release_id}" ]]; then
+            release_id="$(
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
+                -f tag_name="${PREVIEW_TAG}" \
+                -f target_commitish="${GITHUB_SHA}" \
+                -f name="BiliRec Control ${PREVIEW_VERSION} 测试版" \
+                -F body=@"${NOTES_PATH}" \
+                -F draft=true \
+                -F prerelease=true \
+                -f make_latest=false \
+                --jq '.id'
+            )"
+          else
+            while IFS= read -r asset_id; do
+              [[ -n "${asset_id}" ]] || continue
+              gh api --method DELETE \
+                "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}"
+            done < <(
+              gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?per_page=100" \
+                --jq '.[].id'
+            )
+
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+              -f target_commitish="${GITHUB_SHA}" \
+              -f name="BiliRec Control ${PREVIEW_VERSION} 测试版" \
+              -F body=@"${NOTES_PATH}" \
+              -F draft=true \
+              -F prerelease=true \
+              -f make_latest=false \
+              >/dev/null
+          fi
+
+          {
+            echo "version=${PREVIEW_VERSION}"
+            echo "tag=${PREVIEW_TAG}"
+            echo "release_id=${release_id}"
+          } >> "${GITHUB_OUTPUT}"
+
   build:
     name: ${{ matrix.name }}
-    needs: checks
-    if: github.event_name != 'pull_request'
+    needs: prepare-preview
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -67,14 +172,14 @@ jobs:
             os: windows-latest
             target: x86_64-pc-windows-msvc
             rust_targets: x86_64-pc-windows-msvc
-            bundles: nsis,msi
+            bundles: nsis
             platform: windows
             archive: windows-x64
           - name: Linux x64
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             rust_targets: x86_64-unknown-linux-gnu
-            bundles: appimage,deb,rpm
+            bundles: appimage,deb
             platform: linux
             archive: linux-x64
           - name: macOS Universal
@@ -86,7 +191,7 @@ jobs:
             archive: macos-universal
 
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 75
 
     steps:
       - name: Checkout
@@ -125,10 +230,23 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build desktop packages
+      - name: Apply isolated preview version
+        run: node scripts/set-build-version.mjs --version "${{ needs.prepare-preview.outputs.version }}"
+
+      - name: Build and upload signed preview packages
         uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --no-sign
+          releaseId: ${{ needs.prepare-preview.outputs.release_id }}
+          tagName: ${{ needs.prepare-preview.outputs.tag }}
+          releaseDraft: true
+          prerelease: true
+          updaterJsonPreferNsis: true
+          uploadUpdaterJson: false
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
 
       - name: Create Windows portable ZIP
         if: matrix.platform == 'windows'
@@ -168,7 +286,17 @@ jobs:
           mkdir -p dist
           ditto -c -k --keepParent "$app" "dist/BiliRec-Control-${version}-${{ matrix.archive }}-portable.zip"
 
-      - name: Upload build artifacts
+      - name: Upload portable archive to preview release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release upload "${{ needs.prepare-preview.outputs.tag }}" \
+            dist/*.zip \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber
+
+      - name: Upload CI artifacts
         uses: actions/upload-artifact@v6
         with:
           name: BiliRec-Control-${{ matrix.archive }}-${{ github.sha }}
@@ -177,3 +305,216 @@ jobs:
             dist/*.zip
           if-no-files-found: error
           retention-days: 7
+
+  publish-preview:
+    name: Publish verified preview channel
+    needs:
+      - prepare-preview
+      - build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    concurrency:
+      group: bilirec-preview-channel
+      cancel-in-progress: false
+      queue: max
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build and upload complete preview manifest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_RELEASE_ID: ${{ needs.prepare-preview.outputs.release_id }}
+          PREVIEW_TAG: ${{ needs.prepare-preview.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/preview-channel"
+          node scripts/build-updater-manifest.mjs \
+            --repository "${GITHUB_REPOSITORY}" \
+            --release-id "${PREVIEW_RELEASE_ID}" \
+            --tag "${PREVIEW_TAG}" \
+            --channel preview \
+            --output "${RUNNER_TEMP}/preview-channel/latest.json"
+          node scripts/validate-updater-manifest.mjs \
+            --input "${RUNNER_TEMP}/preview-channel/latest.json" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --tag "${PREVIEW_TAG}" \
+            --channel preview
+          gh release upload "${PREVIEW_TAG}" \
+            "${RUNNER_TEMP}/preview-channel/latest.json" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber
+
+      - name: Publish isolated preview release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_RELEASE_ID: ${{ needs.prepare-preview.outputs.release_id }}
+        run: |
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/releases/${PREVIEW_RELEASE_ID}" \
+            -F draft=false \
+            -F prerelease=true \
+            -f make_latest=false \
+            >/dev/null
+
+      - name: Verify anonymous preview downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-public-updater.mjs \
+            --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ needs.prepare-preview.outputs.tag }}/latest.json" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --tag "${{ needs.prepare-preview.outputs.tag }}" \
+            --channel preview \
+            --probe
+
+      - name: Promote newest preview manifest
+        id: promote
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_TAG: ${{ needs.prepare-preview.outputs.tag }}
+          PREVIEW_VERSION: ${{ needs.prepare-preview.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel_release="$(
+            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/ci-latest" 2>/dev/null || true
+          )"
+          if [[ -z "${channel_release}" ]]; then
+            channel_release="$(
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
+                -f tag_name=ci-latest \
+                -f target_commitish="${GITHUB_SHA}" \
+                -f name="BiliRec Control 测试版更新通道" \
+                -f body="Current preview: \`${PREVIEW_VERSION}\`" \
+                -F draft=false \
+                -F prerelease=true \
+                -f make_latest=false
+            )"
+          fi
+
+          channel_release_id="$(node -e "const value=JSON.parse(process.argv[1]);process.stdout.write(String(value.id))" "${channel_release}")"
+          channel_body="$(node -e "const value=JSON.parse(process.argv[1]);process.stdout.write(value.body || '')" "${channel_release}")"
+          current_asset_id="$(
+            node -e "
+              const value = JSON.parse(process.argv[1]);
+              const asset = (value.assets || []).find((item) => item.name === 'latest.json');
+              if (asset) process.stdout.write(String(asset.id));
+            " "${channel_release}"
+          )"
+          current_version=""
+          current_manifest_valid=false
+          if [[ -n "${current_asset_id}" ]]; then
+            current_manifest="${RUNNER_TEMP}/preview-channel/current-latest.json"
+            gh api \
+              -H "Accept: application/octet-stream" \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${current_asset_id}" \
+              > "${current_manifest}"
+            if current_version="$(
+                node -e "
+                  const fs = require('fs');
+                  const value = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+                  if (typeof value.version !== 'string') process.exit(2);
+                  process.stdout.write(value.version);
+                " "${current_manifest}"
+              )" &&
+              node scripts/preview-version.mjs \
+                --candidate "${current_version}" \
+                --current "${current_version}" \
+                >/dev/null; then
+              current_manifest_valid=true
+            else
+              current_version=""
+              echo "::warning::The rolling latest.json is invalid; using the release description as the recovery baseline."
+            fi
+          fi
+
+          if [[ "${current_manifest_valid}" != "true" ]]; then
+            current_version="$(
+              printf '%s\n' "${channel_body}" \
+                | sed -n 's/^Current preview: `\([^`]*\)`.*/\1/p' \
+                | head -n 1
+            )"
+          fi
+
+          if [[ -n "${current_version}" ]]; then
+            should_promote="$(
+              node scripts/preview-version.mjs \
+                --candidate "${PREVIEW_VERSION}" \
+                --current "${current_version}"
+            )"
+            if [[ "${current_manifest_valid}" != "true" && "${PREVIEW_VERSION}" == "${current_version}" ]]; then
+              should_promote=true
+            fi
+          else
+            echo "::error::Cannot determine the current preview version safely."
+            exit 1
+          fi
+
+          if [[ "${should_promote}" != "true" ]]; then
+            if [[ "${current_manifest_valid}" != "true" ]]; then
+              echo "::error::The rolling preview manifest is unavailable and this older run cannot repair it safely."
+              exit 1
+            fi
+            {
+              echo "promoted=false"
+              echo "active_tag=v${current_version}"
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          gh release upload ci-latest \
+            "${RUNNER_TEMP}/preview-channel/latest.json" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/releases/${channel_release_id}" \
+            -f name="BiliRec Control 测试版更新通道" \
+            -f body="Current preview: \`${PREVIEW_VERSION}\`" \
+            -F draft=false \
+            -F prerelease=true \
+            -f make_latest=false \
+            >/dev/null
+          {
+            echo "promoted=true"
+            echo "active_tag=${PREVIEW_TAG}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Verify rolling preview endpoint
+        if: steps.promote.outputs.promoted == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-public-updater.mjs \
+            --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/ci-latest/latest.json" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --tag "${{ needs.prepare-preview.outputs.tag }}" \
+            --channel preview \
+            --probe
+
+      - name: Remove preview releases older than 14 days
+        env:
+          ACTIVE_PREVIEW_TAG: ${{ steps.promote.outputs.active_tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cutoff="$(date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ')"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq '.[] | select(.prerelease == true and .draft == false and (.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+-beta\\.[0-9]+\\.[0-9]+$"))) | [.id, .tag_name, .published_at] | @tsv' \
+            | while IFS=$'\t' read -r release_id tag published_at; do
+                [[ -n "${release_id}" ]] || continue
+                if [[ "${tag}" == "${ACTIVE_PREVIEW_TAG}" || "${published_at}" > "${cutoff}" ]]; then
+                  continue
+                fi
+                echo "Removing expired preview ${tag} (${published_at})"
+                gh api --method DELETE \
+                  "repos/${GITHUB_REPOSITORY}/releases/${release_id}"
+                gh api --method DELETE \
+                  "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag}" \
+                  >/dev/null 2>&1 || true
+              done

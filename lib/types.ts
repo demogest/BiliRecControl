@@ -144,6 +144,24 @@ export type MpvPlayResult = {
   playerPath: string;
 };
 
+export type UpdateEnvironment = {
+  targetTriple: string;
+  updaterTarget: string;
+  bundleType: string;
+  platformLabel: string;
+  previewSupported: boolean;
+  previewUnsupportedReason: string | null;
+};
+
+export type NativeUpdateMetadata = {
+  rid: number;
+  currentVersion: string;
+  version: string;
+  date?: string;
+  body?: string;
+  rawJson: Record<string, unknown>;
+};
+
 export type ConfigPrimitive = boolean | number | string | null;
 
 export type OptionalConfigValue<T extends ConfigPrimitive = ConfigPrimitive> = {

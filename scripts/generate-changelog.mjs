@@ -128,6 +128,19 @@ function gitLog(range) {
     .map(parseCommit);
 }
 
+function latestStableTag(to) {
+  const output = execFileSync('git', ['tag', '--merged', to, '--sort=-version:refname'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore']
+  });
+  return (
+    output
+      .split(/\r?\n/)
+      .map((tag) => tag.trim())
+      .find((tag) => /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(tag)) || ''
+  );
+}
+
 const args = readArguments(process.argv.slice(2));
 let from = typeof args.from === 'string' ? args.from : '';
 const to = typeof args.to === 'string' ? args.to : 'HEAD';
@@ -137,10 +150,8 @@ const repository =
 const outputPath = typeof args.output === 'string' ? args.output : '';
 if (!from && args['auto-from']) {
   try {
-    from = execFileSync('git', ['describe', '--tags', '--abbrev=0', to], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore']
-    }).trim();
+    const autoFromRef = typeof args['auto-from-ref'] === 'string' ? args['auto-from-ref'] : to;
+    from = latestStableTag(autoFromRef);
   } catch {
     from = '';
   }
@@ -204,15 +215,26 @@ if (commits.length === 0) {
   }
 }
 
-lines.push(
-  '## 下载说明',
-  '',
-  '- Windows：x64 提供 NSIS、MSI 与便携 ZIP；ARM64 提供 NSIS 与便携 ZIP。',
-  '- Linux：x64、ARM64 均提供 AppImage、DEB、RPM 与便携 ZIP。',
-  '- macOS：提供 Intel、Apple Silicon 和 Universal 的 DMG、APP 更新包与便携 ZIP。',
-  '- 应用内更新会校验 Tauri 签名，签名不匹配时拒绝安装。',
-  ''
-);
+if (args.preview) {
+  lines.push(
+    '## 测试版说明',
+    '',
+    '- 此版本来自 `main` 分支最新成功 CI，可能包含尚未进入稳定版的改动。',
+    '- Windows x64 提供 NSIS，Linux x64 提供 AppImage 和 DEB，macOS 提供 Universal 构建。',
+    '- 应用内更新会校验与稳定版相同的 Tauri 签名，签名不匹配时拒绝安装。',
+    ''
+  );
+} else {
+  lines.push(
+    '## 下载说明',
+    '',
+    '- Windows：x64 提供 NSIS、MSI 与便携 ZIP；ARM64 提供 NSIS 与便携 ZIP。',
+    '- Linux：x64、ARM64 均提供 AppImage、DEB、RPM 与便携 ZIP。',
+    '- macOS：提供 Intel、Apple Silicon 和 Universal 的 DMG、APP 更新包与便携 ZIP。',
+    '- 应用内更新会校验 Tauri 签名，签名不匹配时拒绝安装。',
+    ''
+  );
+}
 
 if (repository) {
   const comparisonUrl = from
