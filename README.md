@@ -50,7 +50,7 @@ Rust 后端命令
 
 ## 下载与平台支持
 
-Pull Request 会自动执行格式化、Changelog、前端构建、测试和 Rust Clippy 检查。每次推送 `main` 在完整检查通过后，都会构建 Windows x64（NSIS）、Linux x64（AppImage、DEB）和 macOS Universal 三组 CI 包，同时使用 Tauri 更新密钥签名并发布经过匿名下载验证的测试版。带 `v` 前缀的正式版本标签仍会使用完整平台矩阵，自动发布稳定 Release。
+Pull Request 和 `main` 推送会自动执行格式化、Changelog、前端构建、测试和 Rust Clippy 检查。当一次 `main` 推送包含 `feat`、`fix`、`perf`、`refactor`、`build`、`revert` 或 `chore(deps)` 提交时，还会构建 Windows x64（NSIS）、Linux x64（AppImage、DEB）和 macOS Universal 三组 CI 包，同时使用 Tauri 更新密钥签名并发布经过匿名下载验证的测试版；仅包含文档、CI、测试、格式或版本维护的推送不会发包。带 `v` 前缀的正式版本标签仍会使用完整平台矩阵，自动发布稳定 Release。
 
 | 系统    | 架构                           | 安装包             | 便携包       |
 | ------- | ------------------------------ | ------------------ | ------------ |

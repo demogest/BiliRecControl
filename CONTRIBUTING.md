@@ -135,7 +135,7 @@ chore(release): bump version to 1.4.10
 
 版本标签使用对应的 `v<version>`，例如 `v1.4.10`。标签本身不替代符合规范的提交标题。
 
-`main` 的成功 CI 会自动创建下一补丁版本的测试标签，例如 `v1.4.10-beta.123.1`。这些标签和 `ci-latest` 滚动通道由工作流维护，不应手动创建、移动或用于正式发布；正式 Changelog 查找起点时只识别 `v<major>.<minor>.<patch>` 稳定标签，避免测试标签截断正式版本的变更记录。
+`main` 推送包含 `feat`、`fix`、`perf`、`refactor`、`build`、`revert` 或 `chore(deps)` 提交且 CI 成功时，会自动创建下一补丁版本的测试标签，例如 `v1.4.10-beta.123.1`。仅包含 `docs`、`ci`、`style`、`test` 或其他 `chore` 的推送不会创建测试版；需要验证这类工程变更的实际打包结果时，可以手动运行工作流。这些测试标签和 `ci-latest` 滚动通道由工作流维护，不应手动创建、移动或用于正式发布；正式 Changelog 查找起点时只识别 `v<major>.<minor>.<patch>` 稳定标签，避免测试标签截断正式版本的变更记录。
 
 ## 本地检查
 

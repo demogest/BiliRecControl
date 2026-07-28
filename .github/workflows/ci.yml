@@ -17,6 +17,8 @@ jobs:
     name: Format, lint, test, and build
     runs-on: ubuntu-22.04
     timeout-minutes: 30
+    outputs:
+      should_publish_preview: ${{ steps.preview_policy.outputs.should_publish_preview }}
     steps:
       - name: Checkout full history
         uses: actions/checkout@v7
@@ -38,6 +40,29 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Decide whether to publish preview packages
+        id: preview_policy
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          should_publish=false
+
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            should_publish=true
+            echo "::notice::Manual dispatch forces preview package publishing."
+          elif [[ "${EVENT_NAME}" == "push" ]]; then
+            should_publish="$(
+              node scripts/should-publish-preview.mjs \
+                --from "${BEFORE_SHA}" \
+                --to "${GITHUB_SHA}"
+            )"
+          fi
+
+          echo "should_publish_preview=${should_publish}" >> "${GITHUB_OUTPUT}"
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -57,7 +82,10 @@ jobs:
   prepare-preview:
     name: Prepare signed preview release
     needs: checks
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main' &&
+      needs.checks.outputs.should_publish_preview == 'true'
     permissions:
       contents: write
     runs-on: ubuntu-latest
